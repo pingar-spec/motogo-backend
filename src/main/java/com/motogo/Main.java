@@ -18,8 +18,17 @@ public class Main {
         inicializarBaseDeDatosNacional();
 
         // 2. Configurar y arrancar el servidor Javalin
-        var app = Javalin.create().start(7070);
+       // 2. Configurar Javalin con archivos estáticos y arrancar
+        var app = Javalin.create(config -> {
+            config.staticFiles.add("/public", io.javalin.http.staticfiles.Location.CLASSPATH);
+        }).start(7070);
 
+        // Habilitar CORS de manera universal y segura
+        app.before(ctx -> {
+            ctx.header("Access-Control-Allow-Origin", "*");
+            ctx.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+            ctx.header("Access-Control-Allow-Headers", "*");
+        });
         // Habilitar CORS de manera universal y segura
         app.before(ctx -> {
             ctx.header("Access-Control-Allow-Origin", "*");
