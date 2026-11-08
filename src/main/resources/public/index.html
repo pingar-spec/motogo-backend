@@ -3,109 +3,134 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MotoGo - Tu viaje seguro</title>
+    <title>MotoGo - Movilidad Inteligente</title>
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
-        body, html { width: 100%; height: 100%; overflow: hidden; background: #0f172a; }
-        
-        /* Mapa ocupa toda la pantalla exactamente como Uber o Waze */
+        body, html { width: 100%; height: 100%; overflow: hidden; background-color: #f1f5f9; }
+
+        /* Mapa a pantalla completa flotante */
         #map { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
 
-        /* Tarjeta flotante inferior estilo Uber (Bottom Sheet) */
-        .floating-card {
+        /* Panel superior de búsqueda (Profesional y Limpio) */
+        .search-bar-container {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            max-width: 450px;
+            margin: 0 auto;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .location-card, .destination-card {
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 12px 16px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .location-card:hover { background: #f8fafc; }
+
+        .icon-dot { width: 10px; height: 10px; border-radius: 50%; background-color: #3b82f6; }
+        .icon-square { width: 10px; height: 10px; background-color: #f97316; }
+
+        .location-text, .destination-input {
+            flex-grow: 1;
+            border: none;
+            outline: none;
+            font-size: 15px;
+            color: #0f172a;
+            padding: 4px 0;
+        }
+
+        .destination-input::placeholder { color: #94a3b8; }
+
+        /* Resultados de búsqueda (Limpios y ordenados) */
+        #search-results {
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            display: none;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        .search-result-item {
+            padding: 12px 16px;
+            font-size: 14px;
+            color: #333;
+            border-bottom: 1px solid #f1f5f9;
+            cursor: pointer;
+        }
+
+        .search-result-item:last-child { border-bottom: none; }
+        .search-result-item:hover { background-color: #f1f5f9; }
+
+        /* Tarjeta inferior de acción (Estilo Bottom Sheet) */
+        .action-card {
             position: absolute;
             bottom: 20px;
             left: 20px;
             right: 20px;
-            max-width: 440px;
+            max-width: 450px;
             margin: 0 auto;
             background: #ffffff;
             border-radius: 20px;
             padding: 24px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.25);
             z-index: 1000;
-            animation: slideUp 0.3s ease-out;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
         }
 
-        @keyframes slideUp {
-            from { transform: translateY(50px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-
-        .header-app { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
-        .header-app h1 { color: #f97316; font-size: 22px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
-        .gps-status { font-size: 11px; background: #dcfce7; color: #166534; padding: 4px 8px; border-radius: 6px; font-weight: 700; }
-
-        .input-box {
-            position: relative;
-            margin-bottom: 14px;
-        }
-
-        .input-box label {
-            display: block;
-            font-size: 11px;
-            font-weight: 700;
-            color: #64748b;
-            text-transform: uppercase;
-            margin-bottom: 6px;
-        }
-
-        select, input {
-            width: 100%;
-            padding: 14px 16px;
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            font-size: 15px;
-            color: #0f172a;
-            outline: none;
-            transition: all 0.2s;
-        }
-
-        select:focus, input:focus {
-            border-color: #f97316;
-            background: #ffffff;
-            box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.1);
-        }
+        .card-header { display: flex; justify-content: space-between; align-items: center; }
+        .app-title { font-size: 20px; font-weight: 800; color: #f97316; }
+        .service-type { font-size: 11px; background: #fff7ed; color: #c2410c; padding: 4px 8px; border-radius: 6px; font-weight: 700; text-transform: uppercase;}
 
         .btn-solicitar {
             background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
             color: white;
             border: none;
-            width: 100%;
             padding: 16px;
             border-radius: 12px;
             font-size: 16px;
             font-weight: 700;
             cursor: pointer;
+            transition: transform 0.1s;
             box-shadow: 0 4px 12px rgba(249, 115, 22, 0.4);
-            transition: transform 0.1s, opacity 0.2s;
-            margin-top: 5px;
         }
 
-        .btn-solicitar:hover { opacity: 0.95; transform: translateY(-1px); }
+        .btn-solicitar:hover { transform: translateY(-1px); opacity: 0.95; }
         .btn-solicitar:disabled { background: #94a3b8; cursor: wait; box-shadow: none; }
-
-        /* Panel de Estado / Resultado */
-        #resultado {
-            margin-top: 15px;
-            padding: 16px;
-            background: #fff7ed;
-            border: 1px solid #fed7aa;
-            border-radius: 12px;
-            display: none;
-        }
-
-        #resultado h3 { color: #9a3412; font-size: 15px; font-weight: 700; margin-bottom: 4px; }
-        #resultado p { font-size: 13px; color: #431407; line-height: 1.4; }
-        .badge { display: inline-block; background: #fee2e2; color: #991b1b; padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 800; margin-bottom: 6px; }
-        .badge.success { background: #dcfce7; color: #166534; }
 
         /* Ajustes Leaflet */
         .leaflet-control-zoom { border: none !important; box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important; border-radius: 12px !important; overflow: hidden; }
         .leaflet-control-zoom a { background-color: #ffffff !important; color: #0f172a !important; width: 36px !important; height: 36px !important; line-height: 36px !important; font-size: 16px !important; }
+        
+        /* Marcador arrastrable personalizado */
+        .custom-draggable-marker {
+            background: #3b82f6;
+            border: 3px solid #ffffff;
+            border-radius: 50%;
+            box-shadow: 0 0 10px rgba(0,0,0,0.4);
+            cursor: grab;
+        }
+
+        @media (max-width: 768px) {
+            .search-bar-container { top: 10px; left: 10px; right: 10px; }
+            .action-card { padding: 18px; bottom: 10px; left: 10px; right: 10px; }
+        }
     </style>
 </head>
 <body>
@@ -113,190 +138,202 @@
     <!-- Mapa a pantalla completa -->
     <div id="map"></div>
 
-    <!-- Tarjeta flotante inferior interactiva -->
-    <div class="floating-card">
-        <div class="header-app">
-            <h1>MotoGo 🛵</h1>
-            <span id="gps-badge" class="gps-status">GPS Activo</span>
+    <!-- Interfaz Superior: Buscador de Destino Nacional -->
+    <div class="search-bar-container">
+        <!-- Tarjeta de Recogida (Pin Arrastrable) -->
+        <div class="location-card">
+            <div class="icon-dot"></div>
+            <input type="text" id="location-input" class="location-text" readonly value="Punto de recogida (Arrastra el pin en el mapa)">
+        </div>
+        
+        <!-- Tarjeta de Destino (Buscador Inteligente con Autocompletado) -->
+        <div class="destination-card">
+            <div class="icon-square"></div>
+            <input type="text" id="destination-search" class="destination-input" placeholder="¿A dónde vas? (Ej. Plaza de Armas Huaral)">
         </div>
 
-        <div class="input-box">
-            <label for="destino-select">¿A dónde te diriges?</label>
-            <select id="destino-select">
-                <option value="" disabled selected>Selecciona tu destino...</option>
-                <optgroup label="El Agustino">
-                    <option value="Municipalidad de El Agustino">Municipalidad de El Agustino</option>
-                    <option value="Hospital Hipólito Unanue">Hospital Hipólito Unanue</option>
-                    <option value="Puente Nuevo - El Agustino">Puente Nuevo</option>
-                    <option value="Parque Principal El Agustino">Parque Principal</option>
-                </optgroup>
-                <optgroup label="San Juan de Lurigancho">
-                    <option value="Estación Bayóvar SJL">Estación Bayóvar (SJL)</option>
-                    <option value="Universidad César Vallejo SJL">Universidad César Vallejo (SJL)</option>
-                    <option value="Parque Zonal Huáscar SJL">Parque Zonal Huáscar</option>
-                    <option value="Mall Aventura SJL">Mall Aventura SJL</option>
-                </optgroup>
-                <optgroup label="Cercado de Lima">
-                    <option value="Plaza de Armas de Lima">Plaza de Armas de Lima</option>
-                    <option value="Avenida Abancay Centro">Av. Abancay</option>
-                </optgroup>
-            </select>
+        <!-- Resultados de búsqueda -->
+        <div id="search-results"></div>
+    </div>
+
+    <!-- Interfaz Inferior: Tarjeta de Acción -->
+    <div class="action-card">
+        <div class="card-header">
+            <div class="app-title">MotoGo 🛵</div>
+            <div class="service-type">Mototaxi Nacional</div>
         </div>
-
-        <input type="hidden" id="lat" value="-12.0464">
-        <input type="hidden" id="lon" value="-77.0428">
-
-        <button id="btn-solicitar" class="btn-solicitar" onclick="solicitarViaje()" disabled>Solicitar Mototaxi</button>
-
-        <div id="resultado">
-            <span id="estado-badge" class="badge">ESTADO</span>
-            <h3 id="res-titulo">Procesando...</h3>
-            <p id="res-detalle"></p>
-        </div>
+        <button id="btn-solicitar" class="btn-solicitar" onclick="solicitarViaje()" disabled>Solicitar Mototaxi en Vivo</button>
     </div>
 
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // 1. Inicializar mapa a pantalla completa centrado en El Agustino/Lima
-        const map = L.map('map', { zoomControl: false }).setView([-12.0464, -77.0428], 16);
-        L.control.zoom({ position: 'topright' }).addTo(map);
+        // 1. Inicializar mapa a pantalla completa centrado en Lima Centro por defecto
+        const map = L.map('map', { zoomControl: false }).setView([-12.0464, -77.0428], 14);
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-        // Capa limpia OpenStreetMap de alta visibilidad
+        // Capa limpia OpenStreetMap
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
-            attribution: '&copy; OpenStreetMap'
+            attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
 
-        let markerPasajero = null;
-        let markerMoto = null;
+        // Marcador de recogida (Arrastrable)
+        let markerRecogida = null;
+        let recogidaLat = -12.0464;
+        let recogidaLon = -77.0428;
 
-        // 2. Obtener GPS real del celular con máxima prioridad
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(position => {
-                const lat = position.coords.latitude;
-                const lon = position.coords.longitude;
-
-                document.getElementById('lat').value = lat;
-                document.getElementById('lon').value = lon;
-                document.getElementById('btn-solicitar').disabled = false;
-                document.getElementById('gps-badge').innerText = "GPS Preciso OK";
-
-                // Centrar mapa exactamente en la posición del usuario
-                map.setView([lat, lon], 17);
-
-                // Agregar marcador del pasajero con diseño moderno
-                markerPasajero = L.marker([lat, lon]).addTo(map)
-                    .bindPopup("<b>📍 Tu ubicación actual</b>")
-                    .openPopup();
-
-            }, error => {
-                document.getElementById('gps-badge').innerText = "GPS por defecto";
-                document.getElementById('gps-badge').style.background = "#fee2e2";
-                document.getElementById('gps-badge').style.color = "#991b1b";
-                
-                // Si el navegador falla al dar coordenadas exactas, usamos El Agustino por defecto para operar
-                const latDef = -12.0464;
-                const lonDef = -77.0428;
-                document.getElementById('lat').value = latDef;
-                document.getElementById('lon').value = lonDef;
-                document.getElementById('btn-solicitar').disabled = false;
-                map.setView([latDef, lonDef], 16);
-                
-                markerPasajero = L.marker([latDef, lonDef]).addTo(map)
-                    .bindPopup("<b>📍 Ubicación estimada (El Agustino)</b>")
-                    .openPopup();
-            }, {
-                enableHighAccuracy: true,
-                timeout: 12000,
-                maximumAge: 0
-            });
+        // 2. Inicializar mapa con pin arrastrable
+        function inicializarPinArrastrable() {
+            // Intento de obtener GPS real con alta precisión
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(position => {
+                    recogidaLat = position.coords.latitude;
+                    recogidaLon = position.coords.longitude;
+                    centrarYCrearPin();
+                }, error => {
+                    // Si falla el GPS, usamos el centro por defecto
+                    centrarYCrearPin();
+                }, { enableHighAccuracy: true, timeout: 10000 });
+            } else {
+                centrarYCrearPin();
+            }
         }
 
-        async function solicitarViaje() {
-            const selectDestino = document.getElementById('destino-select');
-            const destino = selectDestino.value;
-            const lat = document.getElementById('lat').value;
-            const lon = document.getElementById('lon').value;
+        function centrarYCrearPin() {
+            map.setView([recogidaLat, recogidaLon], 16);
+            const userIcon = L.divIcon({
+                className: 'custom-draggable-marker',
+                iconSize: [22, 22],
+                iconAnchor: [11, 11]
+            });
+            
+            markerRecogida = L.marker([recogidaLat, recogidaLon], {
+                icon: userIcon,
+                draggable: true
+            }).addTo(map).bindPopup("<b>Mueve el pin a tu ubicación exacta</b>").openPopup();
 
-            if (!destino) {
-                alert("Por favor selecciona una zona o distrito de destino.");
+            // Evento para actualizar coords cuando se suelta el pin
+            markerRecogida.on('dragend', function(event) {
+                const position = markerRecogida.getLatLng();
+                recogidaLat = position.lat;
+                recogidaLon = position.lng;
+                document.getElementById('location-input').value = `Punto ajustado manualmente`;
+            });
+
+            document.getElementById('btn-solicitar').disabled = false;
+        }
+
+        inicializarPinArrastrable();
+
+        // 3. Buscador Inteligente de Destino Nacional (Autocompletado Nominatim)
+        const searchInput = document.getElementById('destination-search');
+        const resultsDiv = document.getElementById('search-results');
+        let selectedDestino = "";
+
+        let timeoutId;
+        searchInput.addEventListener('input', function() {
+            clearTimeout(timeoutId);
+            const query = this.value;
+            if (query.length < 3) {
+                resultsDiv.style.display = 'none';
+                return;
+            }
+
+            // Esperar 300ms antes de buscar para no saturar
+            timeoutId = setTimeout(() => {
+                // Llamada a la API de Nominatim para autocompletado a nivel nacional (Perú)
+                fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ', Perú')}&limit=5&countrycodes=pe`)
+                    .then(response => response.json())
+                    .then(data => {
+                        resultsDiv.innerHTML = '';
+                        if (data.length === 0) {
+                            resultsDiv.style.display = 'none';
+                            return;
+                        }
+                        
+                        data.forEach(place => {
+                            const item = document.createElement('div');
+                            item.className = 'search-result-item';
+                            item.innerHTML = `<strong>${place.display_name.split(',')[0]}</strong>, ${place.display_name.split(',').slice(1, 3).join(',')}`;
+                            item.onclick = () => {
+                                // Seleccionar destino
+                                selectedDestino = place.display_name;
+                                searchInput.value = place.display_name.split(',')[0] + ', ' + place.display_name.split(',')[1]; // Nombre corto
+                                resultsDiv.style.display = 'none';
+                                map.setView([place.lat, place.lon], 16);
+                                // (Opcional: Poner un pin de destino en el mapa)
+                            };
+                            resultsDiv.appendChild(item);
+                        });
+                        resultsDiv.style.display = 'block';
+                    })
+                    .catch(err => console.error(err));
+            }, 300);
+        });
+
+        // 4. Flujo de solicitud final
+        async function solicitarViaje() {
+            if (!selectedDestino) {
+                alert("Por favor selecciona un destino de la lista.");
                 return;
             }
 
             const resDiv = document.getElementById('resultado');
-            const badge = document.getElementById('estado-badge');
             const titulo = document.getElementById('res-titulo');
             const detalle = document.getElementById('res-detalle');
 
             resDiv.style.display = "block";
-            badge.className = "badge";
-            badge.innerText = "BUSCANDO";
-            titulo.innerText = "Buscando conductor cercano...";
-            detalle.innerText = "Calculando por Haversine en TiDB Cloud...";
-
+            titulo.innerText = "Buscando mototaxi en vivo... (Esto puede tardar unos segundos si el servidor en Render estaba dormido)";
+            detalle.innerText = `Origen: (${recogidaLat.toFixed(4)}, ${recogidaLon.toFixed(4)}) -> Destino: ${selectedDestino}`;
+            
             const btn = document.getElementById('btn-solicitar');
-            btn.innerText = "Buscando...";
+            btn.innerText = "Procesando...";
             btn.disabled = true;
 
             try {
-                const response = await fetch(`/api/solicitar-viaje?lat=${lat}&lon=${lon}&destino=${encodeURIComponent(destino)}`, {
+                // Petición POST a tu backend en Render
+                const response = await fetch(`/api/solicitar-viaje?lat=${recogidaLat}&lon=${recogidaLon}&destino=${encodeURIComponent(selectedDestino)}`, {
                     method: 'POST'
                 });
 
                 const data = await response.json();
 
                 if (response.ok && data.exito) {
-                    badge.className = "badge success";
-                    badge.innerText = "CONDUCTOR ENCONTRADO";
-                    titulo.innerText = `¡${data.conductor_asignado} en camino!`;
+                    titulo.innerText = `¡Mototaxi en camino: ${data.conductor_asignado}!`;
                     detalle.innerHTML = `<strong>Placa:</strong> ${data.placa} <br><strong>Distancia:</strong> ${data.distancia_km} km <br><strong>Destino:</strong> ${data.destino}`;
-                    
-                    simularMovimientoMoto(parseFloat(lat)+0.002, parseFloat(lon)+0.002, parseFloat(lat), parseFloat(lon));
+                    simularMovimientoMoto(parseFloat(recogidaLat)+0.003, parseFloat(recogidaLon)+0.003, recogidaLat, recogidaLon);
+                    // (Opcional: Dibujar ruta en el mapa)
                 } else {
-                    badge.className = "badge";
-                    badge.innerText = "SIN UNIDADES";
                     titulo.innerText = "No hay unidades disponibles";
                     detalle.innerText = data.mensaje || "Inténtalo de nuevo en unos momentos.";
                 }
             } catch (err) {
-                badge.className = "badge";
-                badge.innerText = "ERROR DE RED";
-                titulo.innerText = "Fallo de conexión";
-                detalle.innerText = "No se pudo comunicar con el servidor en Render.";
+                titulo.innerText = "Error de conexión";
+                detalle.innerText = "No se pudo comunicar con el servidor en la nube. Verifica tu internet.";
             } finally {
-                btn.innerText = "Solicitar Mototaxi";
+                btn.innerText = "Solicitar Mototaxi en Vivo";
                 btn.disabled = false;
             }
         }
 
+        // Función de simulación (la misma de antes)
+        let markerMoto = null;
         function simularMovimientoMoto(latIni, lonIni, latFin, lonFin) {
             if (markerMoto) map.removeLayer(markerMoto);
-
-            const motoIcon = L.divIcon({
-                html: '🛵',
-                className: 'custom-moto-icon',
-                iconSize: [32, 32]
-            });
-
-            let currentL = latIni;
-            let currentLo = lonIni;
-            markerMoto = L.marker([currentL, currentLo], { icon: motoIcon }).addTo(map)
+            const motoIcon = L.divIcon({ html: '🛵', className: 'custom-moto-icon', iconSize: [32, 32] });
+            let currentLat = latIni, currentLon = lonIni;
+            markerMoto = L.marker([currentLat, currentLon], { icon: motoIcon }).addTo(map)
                 .bindPopup("<b>🛵 Mototaxi acercándose</b>").openPopup();
-
-            let step = 0;
-            const totalPasos = 35;
-
+            let step = 0, totalPasos = 40;
             let intervalo = setInterval(() => {
                 step++;
-                currentL += (latFin - currentL) / (totalPasos - step + 1);
-                currentLo += (lonFin - currentLo) / (totalPasos - step + 1);
-                
-                if (markerMoto) markerMoto.setLatLng([currentL, currentLo]);
-
+                currentLat += (latFin - currentLat) / (totalPasos - step + 1);
+                currentLon += (lonFin - currentLon) / (totalPasos - step + 1);
+                if (markerMoto) markerMoto.setLatLng([currentLat, currentLon]);
                 if (step >= totalPasos) {
                     clearInterval(intervalo);
-                    if (markerMoto) markerMoto.bindPopup("<b>✅ ¡Tu mototaxi ha llegado!</b>").openPopup();
+                    if (markerMoto) markerMoto.bindPopup("<b>✅ ¡Tu mototaxi ha llegado al punto!</b>").openPopup();
                 }
             }, 150);
         }
