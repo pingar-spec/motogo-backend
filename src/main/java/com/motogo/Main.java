@@ -8,7 +8,7 @@ import java.util.Map;
 public class Main {
 
     private static final String HOST = "gateway01.sa-east-1.prod.aws.tidbcloud.com";
-    private static final String PORT = "4000";
+    private static final String PORT_DB = "4000";
     private static final String USER = "VqAp2wi3ep6JvL1.root";
     private static final String PASSWORD = "TU_CONTRASEÑA_AQUÍ"; // Reemplaza con tu contraseña real
 
@@ -16,10 +16,17 @@ public class Main {
         // 1. Inicializar la base de datos y tablas automáticamente en la nube
         inicializarBaseDeDatosNacional();
 
-        // 2. Configurar Javalin sirviendo la carpeta estática /public y arrancar en el puerto 7070
+        // 2. Obtener el puerto dinámico asignado por Render (o usar 8080 por defecto local)
+        int puertoApp = 8080;
+        String portEnv = System.getenv("PORT");
+        if (portEnv != null && !portEnv.isEmpty()) {
+            puertoApp = Integer.parseInt(portEnv);
+        }
+
+        // 3. Configurar Javalin sirviendo la carpeta estática /public y arrancando en el puerto correcto
         var app = Javalin.create(config -> {
             config.staticFiles.add("/public", io.javalin.http.staticfiles.Location.CLASSPATH);
-        }).start(7070);
+        }).start(puertoApp);
 
         // Habilitar CORS de manera universal y segura
         app.before(ctx -> {
@@ -28,9 +35,9 @@ public class Main {
             ctx.header("Access-Control-Allow-Headers", "*");
         });
 
-        System.out.println("¡Servidor MotoGo Backend Nacional Activo en la Nube!");
+        System.out.println("¡Servidor MotoGo Backend Nacional Activo en el puerto " + puertoApp + "!");
 
-        // 3. Endpoint principal para solicitar viaje con Haversine a nivel nacional
+        // 4. Endpoint principal para solicitar viaje con Haversine a nivel nacional
         app.post("/api/solicitar-viaje", ctx -> {
             String latStr = ctx.queryParam("lat");
             String lonStr = ctx.queryParam("lon");
@@ -59,7 +66,7 @@ public class Main {
             }
         });
 
-        // 4. Endpoint para el registro y conexión en tiempo real de conductores reales
+        // 5. Endpoint para el registro y conexión en tiempo real de conductores reales
         app.post("/api/registrar-conductor", ctx -> {
             String nombre = ctx.formParam("nombre");
             String placa = ctx.formParam("placa");
@@ -71,7 +78,7 @@ public class Main {
                 return;
             }
 
-            String urlDb = "jdbc:mysql://" + HOST + ":" + PORT + "/motogo_db?sslMode=VERIFY_IDENTITY";
+            String urlDb = "jdbc:mysql://" + HOST + ":" + PORT_DB + "/motogo_db?sslMode=VERIFY_IDENTITY";
             String query = "INSERT INTO conductores (nombre, placa, ciudad_id, latitud, longitud, disponible) VALUES (?, ?, 2, ?, ?, TRUE) " +
                            "ON DUPLICATE KEY UPDATE latitud = VALUES(latitud), longitud = VALUES(longitud), disponible = TRUE";
 
@@ -92,7 +99,7 @@ public class Main {
     }
 
     private static void inicializarBaseDeDatosNacional() {
-        String urlServidor = "jdbc:mysql://" + HOST + ":" + PORT + "?sslMode=VERIFY_IDENTITY";
+        String urlServidor = "jdbc:mysql://" + HOST + ":" + PORT_DB + "?sslMode=VERIFY_IDENTITY";
         
         try (Connection conn = DriverManager.getConnection(urlServidor, USER, PASSWORD);
              Statement stmt = conn.createStatement()) {
@@ -130,7 +137,7 @@ public class Main {
     }
 
     private static Map<String, Object> buscarConductorMasCercano(double pLat, double pLon) {
-        String urlDb = "jdbc:mysql://" + HOST + ":" + PORT + "/motogo_db?sslMode=VERIFY_IDENTITY";
+        String urlDb = "jdbc:mysql://" + HOST + ":" + PORT_DB + "/motogo_db?sslMode=VERIFY_IDENTITY";
         Map<String, Object> mejorConductor = null;
         double menorDistancia = Double.MAX_VALUE;
 
