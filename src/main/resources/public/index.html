@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MotoGo - Solicitar Viaje</title>
+    <title>MotoGo - Movilidad Inteligente</title>
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
@@ -11,25 +11,27 @@
         body { display: flex; height: 100vh; background-color: #f1f5f9; color: #1e293b; overflow: hidden; }
         
         #sidebar { 
-            width: 400px; background: #ffffff; padding: 30px; 
+            width: 420px; background: #ffffff; padding: 30px; 
             box-shadow: 5px 0 25px rgba(0,0,0,0.1); display: flex; 
-            flex-direction: column; z-index: 1000; 
+            flex-direction: column; z-index: 1000; overflow-y: auto;
         }
         
         #map { flex-grow: 1; height: 100%; }
 
-        .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 30px; }
+        .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 25px; }
         .brand h1 { color: #ea580c; font-size: 26px; font-weight: 800; }
 
         .input-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
-        .form-group { margin-bottom: 15px; }
+        .form-group { margin-bottom: 16px; }
         label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 11px; color: #64748b; text-transform: uppercase; }
         
-        input { 
+        select, input { 
             width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; 
-            font-size: 14px; background: #ffffff; color: #0f172a; 
+            font-size: 14px; background: #ffffff; color: #0f172a; outline: none;
         }
-        input:read-only { background-color: #e2e8f0; color: #475569; cursor: not-allowed;}
+        select:focus, input:focus { border-color: #ea580c; box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.15); }
+
+        .helper-text { font-size: 11px; color: #16a34a; margin-top: 4px; font-weight: 600; }
 
         .btn-primary { 
             background: linear-gradient(to right, #f97316, #ea580c); color: white; border: none; 
@@ -47,16 +49,8 @@
 
         @media (max-width: 768px) {
             body { flex-direction: column; }
-            #sidebar { width: 100%; max-height: 45vh; padding: 20px; }
-            #map { width: 100%; height: 55vh; }
-        }
-        
-        /* Estilo para el marcador del pasajero */
-        .custom-user-marker {
-            background-color: #3b82f6;
-            border: 3px solid #ffffff;
-            border-radius: 50%;
-            box-shadow: 0 0 10px rgba(0,0,0,0.3);
+            #sidebar { width: 100%; max-height: 50vh; padding: 20px; }
+            #map { width: 100%; height: 50vh; }
         }
     </style>
 </head>
@@ -64,21 +58,39 @@
 
     <div id="sidebar">
         <div class="brand">
-            <h1>MotoGo</h1>
+            <h1>MotoGo 🛵</h1>
         </div>
 
         <div class="input-card">
             <div class="form-group">
-                <label for="destino">¿A dónde vas?</label>
-                <input type="text" id="destino" placeholder="Ej. Av. Larco 101, Miraflores">
+                <label for="destino-select">¿A qué zona o distrito te diriges?</label>
+                <select id="destino-select">
+                    <option value="" disabled selected>Selecciona tu destino...</option>
+                    <optgroup label="El Agustino">
+                        <option value="Municipalidad de El Agustino">Municipalidad de El Agustino</option>
+                        <option value="Hospital Hipólito Unanue">Hospital Hipólito Unanue</option>
+                        <option value="Puente Nuevo - El Agustino">Puente Nuevo</option>
+                        <option value="Parque El Agustino">Parque Principal</option>
+                    </optgroup>
+                    <optgroup label="San Juan de Lurigancho">
+                        <option value="Estación Bayóvar SJL">Estación Bayóvar (SJL)</option>
+                        <option value="Universidad César Vallejo SJL">Universidad César Vallejo (SJL)</option>
+                        <option value="Parque Zonal Huáscar SJL">Parque Zonal Huáscar</option>
+                        <option value="Mall Aventura SJL">Mall Aventura SJL</option>
+                    </optgroup>
+                    <optgroup label="Cercado de Lima / Centro">
+                        <option value="Plaza de Armas de Lima">Plaza de Armas de Lima</option>
+                        <option value="Avenida Abancay Centro">Av. Abancay</option>
+                    </optgroup>
+                </select>
             </div>
 
             <div class="form-group">
-                <label>Tu ubicación actual</label>
-                <!-- Este campo se llenará con la dirección real -->
-                <input type="text" id="ubicacion-direccion" readonly value="Obteniendo dirección...">
-                <!-- Campo oculto para guardar las coordenadas puras para el backend -->
-                <input type="hidden" id="ubicacion-coordenadas">
+                <label>Tu ubicación GPS en tiempo real</label>
+                <input type="text" id="ubicacion-texto" readonly value="Conectando con satélites GPS...">
+                <p class="helper-text">🛰️ GPS de alta precisión activo.</p>
+                <input type="hidden" id="lat" value="">
+                <input type="hidden" id="lon" value="">
             </div>
 
             <button id="btn-solicitar" class="btn-primary" onclick="solicitarViaje()" disabled>Solicitar Mototaxi</button>
@@ -96,86 +108,66 @@
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // 1. Inicializar mapa centrado en Lima (se actualizará con GPS)
-        const map = L.map('map', { zoomControl: false }).setView([-12.0464, -77.0428], 14);
+        // 1. Inicializar mapa
+        const map = L.map('map', { zoomControl: false }).setView([-12.0464, -77.0428], 15);
         L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-        // 2. Usar capa vectorial nítida y limpia (CartoDB Voyager - Estilo App Moderna)
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-            maxZoom: 20,
-            attribution: '&copy; <a href="https://carto.com/">CARTO</a>'
+        // 2. Capa oficial de OpenStreetMap
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
 
         let markerPasajero = null;
         let markerMoto = null;
 
-        // 3. Obtener ubicación GPS y convertir a dirección (Geocodificación Inversa)
+        // 3. Capturar ubicación GPS real de forma estricta y automática
         if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(async position => {
+            navigator.geolocation.getCurrentPosition(position => {
                 const lat = position.coords.latitude;
                 const lon = position.coords.longitude;
 
-                // Guardar coordenadas ocultas
-                document.getElementById('ubicacion-coordenadas').value = `${lat},${lon}`;
-                
-                // Centrar mapa y poner marcador visual
-                map.setView([lat, lon], 16);
-                
-                const userIcon = L.divIcon({
-                    className: 'custom-user-marker',
-                    iconSize: [20, 20]
-                });
-                
-                markerPasajero = L.marker([lat, lon], {icon: userIcon}).addTo(map)
-                    .bindPopup("<b>Tu ubicación</b>");
+                // Asignar a inputs ocultos y visibles
+                document.getElementById('lat').value = lat;
+                document.getElementById('lon').value = lon;
+                document.getElementById('ubicacion-texto').value = `Lat: ${lat.toFixed(5)}, Lon: ${lon.toFixed(5)}`;
+                document.getElementById('btn-solicitar').disabled = false;
 
-                // --- LLAMADA A LA API DE NOMINATIM (OpenStreetMap) PARA LA DIRECCIÓN ---
-                const dirInput = document.getElementById('ubicacion-direccion');
-                const btnSolicitar = document.getElementById('btn-solicitar');
+                // Centrar mapa exactamente en la posición del GPS
+                map.setView([lat, lon], 17);
 
-                try {
-                    // Petición a Nominatim para geocodificación inversa
-                    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`);
-                    const data = await response.json();
-
-                    if (data && data.display_name) {
-                        // Simplificar el nombre de la dirección (opcional, para que no sea tan largo)
-                        const direccionCorta = data.display_name.split(',').slice(0, 3).join(',');
-                        dirInput.value = direccionCorta; // Mostramos dirección corta
-                    } else {
-                        dirInput.value = "Dirección no encontrada (usa el mapa)";
-                    }
-                } catch (err) {
-                    console.error("Error en geocodificación:", err);
-                    dirInput.value = "Error al obtener dirección";
-                } finally {
-                    btnSolicitar.disabled = false; // Habilitar botón una vez tengamos coords (falle o no la dir)
-                }
+                // Colocar marcador fijo del pasajero (sin opción de arrastrar, puro GPS automático)
+                markerPasajero = L.marker([lat, lon]).addTo(map)
+                    .bindPopup("<b>📍 Tu ubicación GPS exacta</b>")
+                    .openPopup();
 
             }, error => {
-                // Si el usuario deniega el GPS
-                document.getElementById('ubicacion-direccion').value = "GPS desactivado o error.";
-                document.getElementById('btn-solicitar').disabled = false; // Habilitar igual para que ingrese manual
-                alert("Por favor activa tu GPS para ubicarte automáticamente.");
-            }, { enableHighAccuracy: true });
+                alert("No se pudo obtener tu ubicación GPS. Asegúrate de otorgar permisos de ubicación en tu navegador.");
+                document.getElementById('ubicacion-texto').value = "Error al obtener GPS real.";
+            }, { 
+                enableHighAccuracy: true, // Forzar uso de GPS de alta precisión
+                timeout: 10000, 
+                maximumAge: 0 // Cero caché, lectura 100% en vivo
+            });
         } else {
-            alert("Tu navegador no soporta geolocalización.");
+            alert("Tu dispositivo no soporta geolocalización.");
         }
 
         async function solicitarViaje() {
-            const destino = document.getElementById('destino').value;
-            const coordenadas = document.getElementById('ubicacion-coordenadas').value;
+            const selectDestino = document.getElementById('destino-select');
+            const destino = selectDestino.value;
+            const lat = document.getElementById('lat').value;
+            const lon = document.getElementById('lon').value;
 
             if (!destino) {
-                alert("Por favor ingresa tu destino.");
-                return;
-            }
-            if (!coordenadas || coordenadas.includes("undefined")) {
-                alert("No se ha obtenido tu ubicación GPS. Por favor espera o recarga la página.");
+                alert("Por favor selecciona una zona o distrito de destino.");
                 return;
             }
 
-            const [lat, lon] = coordenadas.split(',');
+            if (!lat || !lon) {
+                alert("Esperando señal GPS precisa. Intenta en un momento.");
+                return;
+            }
 
             const resDiv = document.getElementById('resultado');
             const badge = document.getElementById('estado-badge');
@@ -185,15 +177,14 @@
             resDiv.style.display = "block";
             badge.className = "badge";
             badge.innerText = "BUSCANDO";
-            titulo.innerText = "Calculando ruta y buscando unidades...";
-            detalle.innerText = "Consultando backend en Render... (Esto puede tardar unos segundos si el servidor estaba dormido)";
-            
+            titulo.innerText = "Calculando unidad más cercana (Haversine)...";
+            detalle.innerText = "Consultando base de datos en TiDB Cloud...";
+
             const btn = document.getElementById('btn-solicitar');
             btn.innerText = "Procesando...";
             btn.disabled = true;
 
             try {
-                // Petición POST a tu backend en Render
                 const response = await fetch(`/api/solicitar-viaje?lat=${lat}&lon=${lon}&destino=${encodeURIComponent(destino)}`, {
                     method: 'POST'
                 });
@@ -206,9 +197,7 @@
                     titulo.innerText = `¡Mototaxi en camino: ${data.conductor_asignado}!`;
                     detalle.innerHTML = `<strong>Placa:</strong> ${data.placa} <br><strong>Distancia:</strong> ${data.distancia_km} km <br><strong>Destino:</strong> ${data.destino}`;
                     
-                    // Animación de la moto acercándose
-                    simularMovimientoMoto(parseFloat(lat)+0.003, parseFloat(lon)+0.003, lat, lon);
-
+                    simularMovimientoMoto(parseFloat(lat)+0.002, parseFloat(lon)+0.002, parseFloat(lat), parseFloat(lon));
                 } else {
                     badge.className = "badge";
                     badge.innerText = "SIN UNIDADES";
@@ -219,14 +208,13 @@
                 badge.className = "badge";
                 badge.innerText = "ERROR DE RED";
                 titulo.innerText = "Fallo de conexión";
-                detalle.innerText = "No se pudo comunicar con el servidor en Render. Verifica tu internet o intenta más tarde.";
+                detalle.innerText = "No se pudo comunicar con el servidor en Render.";
             } finally {
                 btn.innerText = "Solicitar Mototaxi";
                 btn.disabled = false;
             }
         }
 
-        // Función de simulación (la misma de antes, solo para vista)
         function simularMovimientoMoto(latIni, lonIni, latFin, lonFin) {
             if (markerMoto) map.removeLayer(markerMoto);
 
@@ -236,20 +224,20 @@
                 iconSize: [32, 32]
             });
 
-            let currentLat = latIni;
-            let currentLon = lonIni;
-            markerMoto = L.marker([currentLat, currentLon], { icon: motoIcon }).addTo(map)
+            let currentL = latIni;
+            let currentLo = lonIni;
+            markerMoto = L.marker([currentL, currentLo], { icon: motoIcon }).addTo(map)
                 .bindPopup("<b>🛵 Mototaxi acercándose</b>").openPopup();
 
             let step = 0;
-            const totalPasos = 40;
+            const totalPasos = 35;
 
             let intervalo = setInterval(() => {
                 step++;
-                currentLat += (latFin - currentLat) / (totalPasos - step + 1);
-                currentLon += (lonFin - currentLon) / (totalPasos - step + 1);
+                currentL += (latFin - currentL) / (totalPasos - step + 1);
+                currentLo += (lonFin - currentLo) / (totalPasos - step + 1);
                 
-                if (markerMoto) markerMoto.setLatLng([currentLat, currentLon]);
+                if (markerMoto) markerMoto.setLatLng([currentL, currentLo]);
 
                 if (step >= totalPasos) {
                     clearInterval(intervalo);
