@@ -2,99 +2,151 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MotoGo - Movilidad Inteligente</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MotoGo - Tu viaje seguro</title>
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, sans-serif; }
-        body { display: flex; height: 100vh; background-color: #f1f5f9; color: #1e293b; overflow: hidden; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+        body, html { width: 100%; height: 100%; overflow: hidden; background: #0f172a; }
         
-        #sidebar { 
-            width: 420px; background: #ffffff; padding: 30px; 
-            box-shadow: 5px 0 25px rgba(0,0,0,0.1); display: flex; 
-            flex-direction: column; z-index: 1000; overflow-y: auto;
+        /* Mapa ocupa toda la pantalla exactamente como Uber o Waze */
+        #map { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
+
+        /* Tarjeta flotante inferior estilo Uber (Bottom Sheet) */
+        .floating-card {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            max-width: 440px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 20px;
+            padding: 24px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+            z-index: 1000;
+            animation: slideUp 0.3s ease-out;
         }
-        
-        #map { flex-grow: 1; height: 100%; }
 
-        .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 25px; }
-        .brand h1 { color: #ea580c; font-size: 26px; font-weight: 800; }
-
-        .input-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
-        .form-group { margin-bottom: 16px; }
-        label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 11px; color: #64748b; text-transform: uppercase; }
-        
-        select, input { 
-            width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; 
-            font-size: 14px; background: #ffffff; color: #0f172a; outline: none;
+        @keyframes slideUp {
+            from { transform: translateY(50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
         }
-        select:focus, input:focus { border-color: #ea580c; box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.15); }
 
-        .helper-text { font-size: 11px; color: #16a34a; margin-top: 4px; font-weight: 600; }
+        .header-app { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+        .header-app h1 { color: #f97316; font-size: 22px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+        .gps-status { font-size: 11px; background: #dcfce7; color: #166534; padding: 4px 8px; border-radius: 6px; font-weight: 700; }
 
-        .btn-primary { 
-            background: linear-gradient(to right, #f97316, #ea580c); color: white; border: none; 
-            padding: 15px; width: 100%; border-radius: 8px; font-size: 16px; font-weight: 700; 
-            cursor: pointer; transition: opacity 0.2s; 
+        .input-box {
+            position: relative;
+            margin-bottom: 14px;
         }
-        .btn-primary:hover { opacity: 0.9; }
-        .btn-primary:disabled { background: #94a3b8; cursor: wait; }
 
-        #resultado { margin-top: 10px; padding: 15px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; display: none; }
-        #resultado h3 { color: #9a3412; font-size: 14px; font-weight: 700; margin-bottom: 4px; }
-        #resultado p { font-size: 12px; color: #431407; }
-        .badge { display: inline-block; background: #fee2e2; color: #991b1b; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; margin-bottom: 6px; }
+        .input-box label {
+            display: block;
+            font-size: 11px;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+
+        select, input {
+            width: 100%;
+            padding: 14px 16px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 15px;
+            color: #0f172a;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        select:focus, input:focus {
+            border-color: #f97316;
+            background: #ffffff;
+            box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.1);
+        }
+
+        .btn-solicitar {
+            background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+            color: white;
+            border: none;
+            width: 100%;
+            padding: 16px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(249, 115, 22, 0.4);
+            transition: transform 0.1s, opacity 0.2s;
+            margin-top: 5px;
+        }
+
+        .btn-solicitar:hover { opacity: 0.95; transform: translateY(-1px); }
+        .btn-solicitar:disabled { background: #94a3b8; cursor: wait; box-shadow: none; }
+
+        /* Panel de Estado / Resultado */
+        #resultado {
+            margin-top: 15px;
+            padding: 16px;
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            border-radius: 12px;
+            display: none;
+        }
+
+        #resultado h3 { color: #9a3412; font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+        #resultado p { font-size: 13px; color: #431407; line-height: 1.4; }
+        .badge { display: inline-block; background: #fee2e2; color: #991b1b; padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 800; margin-bottom: 6px; }
         .badge.success { background: #dcfce7; color: #166534; }
 
-        @media (max-width: 768px) {
-            body { flex-direction: column; }
-            #sidebar { width: 100%; max-height: 50vh; padding: 20px; }
-            #map { width: 100%; height: 50vh; }
-        }
+        /* Ajustes Leaflet */
+        .leaflet-control-zoom { border: none !important; box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important; border-radius: 12px !important; overflow: hidden; }
+        .leaflet-control-zoom a { background-color: #ffffff !important; color: #0f172a !important; width: 36px !important; height: 36px !important; line-height: 36px !important; font-size: 16px !important; }
     </style>
 </head>
 <body>
 
-    <div id="sidebar">
-        <div class="brand">
+    <!-- Mapa a pantalla completa -->
+    <div id="map"></div>
+
+    <!-- Tarjeta flotante inferior interactiva -->
+    <div class="floating-card">
+        <div class="header-app">
             <h1>MotoGo 🛵</h1>
+            <span id="gps-badge" class="gps-status">GPS Activo</span>
         </div>
 
-        <div class="input-card">
-            <div class="form-group">
-                <label for="destino-select">¿A qué zona o distrito te diriges?</label>
-                <select id="destino-select">
-                    <option value="" disabled selected>Selecciona tu destino...</option>
-                    <optgroup label="El Agustino">
-                        <option value="Municipalidad de El Agustino">Municipalidad de El Agustino</option>
-                        <option value="Hospital Hipólito Unanue">Hospital Hipólito Unanue</option>
-                        <option value="Puente Nuevo - El Agustino">Puente Nuevo</option>
-                        <option value="Parque El Agustino">Parque Principal</option>
-                    </optgroup>
-                    <optgroup label="San Juan de Lurigancho">
-                        <option value="Estación Bayóvar SJL">Estación Bayóvar (SJL)</option>
-                        <option value="Universidad César Vallejo SJL">Universidad César Vallejo (SJL)</option>
-                        <option value="Parque Zonal Huáscar SJL">Parque Zonal Huáscar</option>
-                        <option value="Mall Aventura SJL">Mall Aventura SJL</option>
-                    </optgroup>
-                    <optgroup label="Cercado de Lima / Centro">
-                        <option value="Plaza de Armas de Lima">Plaza de Armas de Lima</option>
-                        <option value="Avenida Abancay Centro">Av. Abancay</option>
-                    </optgroup>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label>Tu ubicación GPS en tiempo real</label>
-                <input type="text" id="ubicacion-texto" readonly value="Conectando con satélites GPS...">
-                <p class="helper-text">🛰️ GPS de alta precisión activo.</p>
-                <input type="hidden" id="lat" value="">
-                <input type="hidden" id="lon" value="">
-            </div>
-
-            <button id="btn-solicitar" class="btn-primary" onclick="solicitarViaje()" disabled>Solicitar Mototaxi</button>
+        <div class="input-box">
+            <label for="destino-select">¿A dónde te diriges?</label>
+            <select id="destino-select">
+                <option value="" disabled selected>Selecciona tu destino...</option>
+                <optgroup label="El Agustino">
+                    <option value="Municipalidad de El Agustino">Municipalidad de El Agustino</option>
+                    <option value="Hospital Hipólito Unanue">Hospital Hipólito Unanue</option>
+                    <option value="Puente Nuevo - El Agustino">Puente Nuevo</option>
+                    <option value="Parque Principal El Agustino">Parque Principal</option>
+                </optgroup>
+                <optgroup label="San Juan de Lurigancho">
+                    <option value="Estación Bayóvar SJL">Estación Bayóvar (SJL)</option>
+                    <option value="Universidad César Vallejo SJL">Universidad César Vallejo (SJL)</option>
+                    <option value="Parque Zonal Huáscar SJL">Parque Zonal Huáscar</option>
+                    <option value="Mall Aventura SJL">Mall Aventura SJL</option>
+                </optgroup>
+                <optgroup label="Cercado de Lima">
+                    <option value="Plaza de Armas de Lima">Plaza de Armas de Lima</option>
+                    <option value="Avenida Abancay Centro">Av. Abancay</option>
+                </optgroup>
+            </select>
         </div>
+
+        <input type="hidden" id="lat" value="-12.0464">
+        <input type="hidden" id="lon" value="-77.0428">
+
+        <button id="btn-solicitar" class="btn-solicitar" onclick="solicitarViaje()" disabled>Solicitar Mototaxi</button>
 
         <div id="resultado">
             <span id="estado-badge" class="badge">ESTADO</span>
@@ -103,54 +155,62 @@
         </div>
     </div>
 
-    <div id="map"></div>
-
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // 1. Inicializar mapa
-        const map = L.map('map', { zoomControl: false }).setView([-12.0464, -77.0428], 15);
-        L.control.zoom({ position: 'bottomright' }).addTo(map);
+        // 1. Inicializar mapa a pantalla completa centrado en El Agustino/Lima
+        const map = L.map('map', { zoomControl: false }).setView([-12.0464, -77.0428], 16);
+        L.control.zoom({ position: 'topright' }).addTo(map);
 
-        // 2. Capa oficial de OpenStreetMap
+        // Capa limpia OpenStreetMap de alta visibilidad
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
-            attribution: '&copy; OpenStreetMap contributors'
+            attribution: '&copy; OpenStreetMap'
         }).addTo(map);
 
         let markerPasajero = null;
         let markerMoto = null;
 
-        // 3. Capturar ubicación GPS real de forma estricta y automática
+        // 2. Obtener GPS real del celular con máxima prioridad
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(position => {
                 const lat = position.coords.latitude;
                 const lon = position.coords.longitude;
 
-                // Asignar a inputs ocultos y visibles
                 document.getElementById('lat').value = lat;
                 document.getElementById('lon').value = lon;
-                document.getElementById('ubicacion-texto').value = `Lat: ${lat.toFixed(5)}, Lon: ${lon.toFixed(5)}`;
                 document.getElementById('btn-solicitar').disabled = false;
+                document.getElementById('gps-badge').innerText = "GPS Preciso OK";
 
-                // Centrar mapa exactamente en la posición del GPS
+                // Centrar mapa exactamente en la posición del usuario
                 map.setView([lat, lon], 17);
 
-                // Colocar marcador fijo del pasajero (sin opción de arrastrar, puro GPS automático)
+                // Agregar marcador del pasajero con diseño moderno
                 markerPasajero = L.marker([lat, lon]).addTo(map)
-                    .bindPopup("<b>📍 Tu ubicación GPS exacta</b>")
+                    .bindPopup("<b>📍 Tu ubicación actual</b>")
                     .openPopup();
 
             }, error => {
-                alert("No se pudo obtener tu ubicación GPS. Asegúrate de otorgar permisos de ubicación en tu navegador.");
-                document.getElementById('ubicacion-texto').value = "Error al obtener GPS real.";
-            }, { 
-                enableHighAccuracy: true, // Forzar uso de GPS de alta precisión
-                timeout: 10000, 
-                maximumAge: 0 // Cero caché, lectura 100% en vivo
+                document.getElementById('gps-badge').innerText = "GPS por defecto";
+                document.getElementById('gps-badge').style.background = "#fee2e2";
+                document.getElementById('gps-badge').style.color = "#991b1b";
+                
+                // Si el navegador falla al dar coordenadas exactas, usamos El Agustino por defecto para operar
+                const latDef = -12.0464;
+                const lonDef = -77.0428;
+                document.getElementById('lat').value = latDef;
+                document.getElementById('lon').value = lonDef;
+                document.getElementById('btn-solicitar').disabled = false;
+                map.setView([latDef, lonDef], 16);
+                
+                markerPasajero = L.marker([latDef, lonDef]).addTo(map)
+                    .bindPopup("<b>📍 Ubicación estimada (El Agustino)</b>")
+                    .openPopup();
+            }, {
+                enableHighAccuracy: true,
+                timeout: 12000,
+                maximumAge: 0
             });
-        } else {
-            alert("Tu dispositivo no soporta geolocalización.");
         }
 
         async function solicitarViaje() {
@@ -164,11 +224,6 @@
                 return;
             }
 
-            if (!lat || !lon) {
-                alert("Esperando señal GPS precisa. Intenta en un momento.");
-                return;
-            }
-
             const resDiv = document.getElementById('resultado');
             const badge = document.getElementById('estado-badge');
             const titulo = document.getElementById('res-titulo');
@@ -177,11 +232,11 @@
             resDiv.style.display = "block";
             badge.className = "badge";
             badge.innerText = "BUSCANDO";
-            titulo.innerText = "Calculando unidad más cercana (Haversine)...";
-            detalle.innerText = "Consultando base de datos en TiDB Cloud...";
+            titulo.innerText = "Buscando conductor cercano...";
+            detalle.innerText = "Calculando por Haversine en TiDB Cloud...";
 
             const btn = document.getElementById('btn-solicitar');
-            btn.innerText = "Procesando...";
+            btn.innerText = "Buscando...";
             btn.disabled = true;
 
             try {
@@ -193,8 +248,8 @@
 
                 if (response.ok && data.exito) {
                     badge.className = "badge success";
-                    badge.innerText = "UNIDAD ASIGNADA";
-                    titulo.innerText = `¡Mototaxi en camino: ${data.conductor_asignado}!`;
+                    badge.innerText = "CONDUCTOR ENCONTRADO";
+                    titulo.innerText = `¡${data.conductor_asignado} en camino!`;
                     detalle.innerHTML = `<strong>Placa:</strong> ${data.placa} <br><strong>Distancia:</strong> ${data.distancia_km} km <br><strong>Destino:</strong> ${data.destino}`;
                     
                     simularMovimientoMoto(parseFloat(lat)+0.002, parseFloat(lon)+0.002, parseFloat(lat), parseFloat(lon));
