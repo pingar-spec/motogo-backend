@@ -3,64 +3,60 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MotoGo - Plataforma Inteligente de Movilidad</title>
+    <title>MotoGo - Solicitar Viaje</title>
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <!-- Leaflet Heatmap Plugin -->
-    <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
-        body { display: flex; height: 100vh; background-color: #0f172a; color: #1e293b; overflow: hidden; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, sans-serif; }
+        body { display: flex; height: 100vh; background-color: #f1f5f9; color: #1e293b; overflow: hidden; }
         
         #sidebar { 
-            width: 420px; background: #ffffff; padding: 30px; 
-            box-shadow: 10px 0 30px rgba(0,0,0,0.15); display: flex; 
-            flex-direction: column; z-index: 1000; overflow-y: auto; 
+            width: 400px; background: #ffffff; padding: 30px; 
+            box-shadow: 5px 0 25px rgba(0,0,0,0.1); display: flex; 
+            flex-direction: column; z-index: 1000; 
         }
         
         #map { flex-grow: 1; height: 100%; }
 
-        .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 25px; }
-        .brand h1 { color: #f97316; font-size: 28px; font-weight: 800; letter-spacing: -0.5px; }
-        .brand span { background: #ffedd5; color: #c2410c; font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 6px; text-transform: uppercase; }
+        .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 30px; }
+        .brand h1 { color: #ea580c; font-size: 26px; font-weight: 800; }
 
-        .card-panel { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 20px; margin-bottom: 20px; }
-        .form-group { margin-bottom: 16px; }
-        label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+        .input-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 11px; color: #64748b; text-transform: uppercase; }
         
         input { 
-            width: 100%; padding: 14px; border: 1px solid #cbd5e1; border-radius: 10px; 
-            font-size: 14px; background: #ffffff; color: #0f172a; outline: none; transition: all 0.2s; 
+            width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; 
+            font-size: 14px; background: #ffffff; color: #0f172a; 
         }
-        input:focus { border-color: #f97316; box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15); }
+        input:read-only { background-color: #e2e8f0; color: #475569; cursor: not-allowed;}
 
         .btn-primary { 
-            background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); color: white; border: none; 
-            padding: 16px; width: 100%; border-radius: 10px; font-size: 15px; font-weight: 700; 
-            cursor: pointer; box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3); transition: transform 0.1s, opacity 0.2s; 
+            background: linear-gradient(to right, #f97316, #ea580c); color: white; border: none; 
+            padding: 15px; width: 100%; border-radius: 8px; font-size: 16px; font-weight: 700; 
+            cursor: pointer; transition: opacity 0.2s; 
         }
-        .btn-primary:hover { opacity: 0.95; transform: translateY(-1px); }
+        .btn-primary:hover { opacity: 0.9; }
+        .btn-primary:disabled { background: #94a3b8; cursor: wait; }
 
-        .layer-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 20px; }
-        .layer-btn { 
-            background: #f1f5f9; border: 1px solid #e2e8f0; padding: 10px; border-radius: 8px; 
-            font-size: 12px; font-weight: 600; color: #475569; cursor: pointer; text-align: center; transition: all 0.2s; 
-        }
-        .layer-btn.active { background: #fff7ed; border-color: #f97316; color: #c2410c; }
-
-        #resultado { margin-top: 15px; padding: 18px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 12px; display: none; animation: fadeIn 0.3s ease; }
-        #resultado h3 { color: #9a3412; font-size: 16px; font-weight: 700; margin-bottom: 6px; }
-        #resultado p { font-size: 13px; color: #431407; line-height: 1.5; }
-        
-        .badge { display: inline-block; background: #fee2e2; color: #991b1b; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 800; margin-bottom: 8px; }
+        #resultado { margin-top: 10px; padding: 15px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; display: none; }
+        #resultado h3 { color: #9a3412; font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+        #resultado p { font-size: 12px; color: #431407; }
+        .badge { display: inline-block; background: #fee2e2; color: #991b1b; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; margin-bottom: 6px; }
         .badge.success { background: #dcfce7; color: #166534; }
 
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-
         @media (max-width: 768px) {
-            body { flex-direction: column; overflow: auto; }
-            #sidebar { width: 100%; max-height: 50vh; padding: 20px; }
-            #map { width: 100%; height: 50vh; }
+            body { flex-direction: column; }
+            #sidebar { width: 100%; max-height: 45vh; padding: 20px; }
+            #map { width: 100%; height: 55vh; }
+        }
+        
+        /* Estilo para el marcador del pasajero */
+        .custom-user-marker {
+            background-color: #3b82f6;
+            border: 3px solid #ffffff;
+            border-radius: 50%;
+            box-shadow: 0 0 10px rgba(0,0,0,0.3);
         }
     </style>
 </head>
@@ -69,26 +65,23 @@
     <div id="sidebar">
         <div class="brand">
             <h1>MotoGo</h1>
-            <span>Smart AI & Realtime</span>
         </div>
 
-        <div class="layer-selector">
-            <div class="layer-btn active" onclick="cambiarCapa('calles', this)">🗺️ Calles HD</div>
-            <div class="layer-btn" onclick="cambiarCapa('calor', this)">🔥 Mapa de Calor</div>
-        </div>
-
-        <div class="card-panel">
+        <div class="input-card">
             <div class="form-group">
-                <label for="destino">Destino del Viaje</label>
-                <input type="text" id="destino" placeholder="Ej. Hospital Hipólito Unanue, Plaza...">
+                <label for="destino">¿A dónde vas?</label>
+                <input type="text" id="destino" placeholder="Ej. Av. Larco 101, Miraflores">
             </div>
 
             <div class="form-group">
-                <label>Tu Posición GPS Actual</label>
-                <input type="text" id="ubicacion" readonly value="Localizando satélites GPS...">
+                <label>Tu ubicación actual</label>
+                <!-- Este campo se llenará con la dirección real -->
+                <input type="text" id="ubicacion-direccion" readonly value="Obteniendo dirección...">
+                <!-- Campo oculto para guardar las coordenadas puras para el backend -->
+                <input type="hidden" id="ubicacion-coordenadas">
             </div>
 
-            <button class="btn-primary" onclick="solicitarViaje()">Solicitar Mototaxi en Vivo</button>
+            <button id="btn-solicitar" class="btn-primary" onclick="solicitarViaje()" disabled>Solicitar Mototaxi</button>
         </div>
 
         <div id="resultado">
@@ -103,67 +96,86 @@
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // Inicializar mapa centrado en El Agustino / Lima
-        const map = L.map('map', { zoomControl: false }).setView([-12.0464, -77.0428], 15);
+        // 1. Inicializar mapa centrado en Lima (se actualizará con GPS)
+        const map = L.map('map', { zoomControl: false }).setView([-12.0464, -77.0428], 14);
         L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-        // Capa base principal: CartoDB Positron (Vectorial ultra nítida, limpia y profesional estilo app moderna)
-        const capaCalles = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        // 2. Usar capa vectorial nítida y limpia (CartoDB Voyager - Estilo App Moderna)
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
             maxZoom: 20,
             attribution: '&copy; <a href="https://carto.com/">CARTO</a>'
         }).addTo(map);
 
-        // Capa de Mapa de Calor simulado de alta demanda en la zona
-        let heatLayer = null;
-        const puntosCalor = [
-            [-12.0464, -77.0428, 0.9], // Zona central
-            [-12.0480, -77.0400, 0.8], // Hospital Unanue
-            [-12.0430, -77.0450, 0.7], 
-            [-12.0500, -77.0380, 0.6],
-            [-12.0420, -77.0480, 0.9]
-        ];
-        heatLayer = L.heatLayer(puntosCalor, { radius: 25, blur: 15, maxZoom: 17 });
-
-        function cambiarCapa(tipo, elemento) {
-            document.querySelectorAll('.layer-btn').forEach(btn => btn.classList.remove('active'));
-            elemento.classList.add('active');
-
-            if (tipo === 'calles') {
-                if (map.hasLayer(heatLayer)) map.removeLayer(heatLayer);
-                if (!map.hasLayer(capaCalles)) capaCalles.addTo(map);
-            } else if (tipo === 'calor') {
-                if (!map.hasLayer(heatLayer)) heatLayer.addTo(map);
-            }
-        }
-
         let markerPasajero = null;
         let markerMoto = null;
-        let pasajeroLat = -12.0464;
-        let pasajeroLon = -77.0428;
 
-        // Obtener ubicación GPS real del usuario
+        // 3. Obtener ubicación GPS y convertir a dirección (Geocodificación Inversa)
         if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(position => {
-                pasajeroLat = position.coords.latitude;
-                pasajeroLon = position.coords.longitude;
+            navigator.geolocation.getCurrentPosition(async position => {
+                const lat = position.coords.latitude;
+                const lon = position.coords.longitude;
 
-                document.getElementById('ubicacion').value = `${pasajeroLat.toFixed(5)}, ${pasajeroLon.toFixed(5)}`;
+                // Guardar coordenadas ocultas
+                document.getElementById('ubicacion-coordenadas').value = `${lat},${lon}`;
                 
-                map.setView([pasajeroLat, pasajeroLon], 16);
-                markerPasajero = L.marker([pasajeroLat, pasajeroLon]).addTo(map)
-                    .bindPopup("<b>📍 Tu ubicación actual</b>")
-                    .openPopup();
+                // Centrar mapa y poner marcador visual
+                map.setView([lat, lon], 16);
+                
+                const userIcon = L.divIcon({
+                    className: 'custom-user-marker',
+                    iconSize: [20, 20]
+                });
+                
+                markerPasajero = L.marker([lat, lon], {icon: userIcon}).addTo(map)
+                    .bindPopup("<b>Tu ubicación</b>");
+
+                // --- LLAMADA A LA API DE NOMINATIM (OpenStreetMap) PARA LA DIRECCIÓN ---
+                const dirInput = document.getElementById('ubicacion-direccion');
+                const btnSolicitar = document.getElementById('btn-solicitar');
+
+                try {
+                    // Petición a Nominatim para geocodificación inversa
+                    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`);
+                    const data = await response.json();
+
+                    if (data && data.display_name) {
+                        // Simplificar el nombre de la dirección (opcional, para que no sea tan largo)
+                        const direccionCorta = data.display_name.split(',').slice(0, 3).join(',');
+                        dirInput.value = direccionCorta; // Mostramos dirección corta
+                    } else {
+                        dirInput.value = "Dirección no encontrada (usa el mapa)";
+                    }
+                } catch (err) {
+                    console.error("Error en geocodificación:", err);
+                    dirInput.value = "Error al obtener dirección";
+                } finally {
+                    btnSolicitar.disabled = false; // Habilitar botón una vez tengamos coords (falle o no la dir)
+                }
+
             }, error => {
-                document.getElementById('ubicacion').value = "-12.04640, -77.04280 (Por defecto)";
-            });
+                // Si el usuario deniega el GPS
+                document.getElementById('ubicacion-direccion').value = "GPS desactivado o error.";
+                document.getElementById('btn-solicitar').disabled = false; // Habilitar igual para que ingrese manual
+                alert("Por favor activa tu GPS para ubicarte automáticamente.");
+            }, { enableHighAccuracy: true });
+        } else {
+            alert("Tu navegador no soporta geolocalización.");
         }
 
         async function solicitarViaje() {
             const destino = document.getElementById('destino').value;
+            const coordenadas = document.getElementById('ubicacion-coordenadas').value;
+
             if (!destino) {
-                alert("Por favor ingresa un destino válido.");
+                alert("Por favor ingresa tu destino.");
                 return;
             }
+            if (!coordenadas || coordenadas.includes("undefined")) {
+                alert("No se ha obtenido tu ubicación GPS. Por favor espera o recarga la página.");
+                return;
+            }
+
+            const [lat, lon] = coordenadas.split(',');
 
             const resDiv = document.getElementById('resultado');
             const badge = document.getElementById('estado-badge');
@@ -172,12 +184,17 @@
 
             resDiv.style.display = "block";
             badge.className = "badge";
-            badge.innerText = "BUSCANDO EN TIEMPO REAL";
-            titulo.innerText = "Analizando proximidad (Haversine)...";
-            detalle.innerText = "Consultando base de datos nacional en la nube...";
+            badge.innerText = "BUSCANDO";
+            titulo.innerText = "Calculando ruta y buscando unidades...";
+            detalle.innerText = "Consultando backend en Render... (Esto puede tardar unos segundos si el servidor estaba dormido)";
+            
+            const btn = document.getElementById('btn-solicitar');
+            btn.innerText = "Procesando...";
+            btn.disabled = true;
 
             try {
-                const response = await fetch(`/api/solicitar-viaje?lat=${pasajeroLat}&lon=${pasajeroLon}&destino=${encodeURIComponent(destino)}`, {
+                // Petición POST a tu backend en Render
+                const response = await fetch(`/api/solicitar-viaje?lat=${lat}&lon=${lon}&destino=${encodeURIComponent(destino)}`, {
                     method: 'POST'
                 });
 
@@ -188,9 +205,9 @@
                     badge.innerText = "UNIDAD ASIGNADA";
                     titulo.innerText = `¡Mototaxi en camino: ${data.conductor_asignado}!`;
                     detalle.innerHTML = `<strong>Placa:</strong> ${data.placa} <br><strong>Distancia:</strong> ${data.distancia_km} km <br><strong>Destino:</strong> ${data.destino}`;
-
-                    // Simulación fluida de la moto acercándose en tiempo real
-                    simularMovimientoMoto(pasajeroLat + 0.0025, pasajeroLon + 0.0025, pasajeroLat, pasajeroLon);
+                    
+                    // Animación de la moto acercándose
+                    simularMovimientoMoto(parseFloat(lat)+0.003, parseFloat(lon)+0.003, lat, lon);
 
                 } else {
                     badge.className = "badge";
@@ -202,10 +219,14 @@
                 badge.className = "badge";
                 badge.innerText = "ERROR DE RED";
                 titulo.innerText = "Fallo de conexión";
-                detalle.innerText = "No se pudo conectar con el servidor en Render.";
+                detalle.innerText = "No se pudo comunicar con el servidor en Render. Verifica tu internet o intenta más tarde.";
+            } finally {
+                btn.innerText = "Solicitar Mototaxi";
+                btn.disabled = false;
             }
         }
 
+        // Función de simulación (la misma de antes, solo para vista)
         function simularMovimientoMoto(latIni, lonIni, latFin, lonFin) {
             if (markerMoto) map.removeLayer(markerMoto);
 
@@ -232,7 +253,7 @@
 
                 if (step >= totalPasos) {
                     clearInterval(intervalo);
-                    if (markerMoto) markerMoto.bindPopup("<b>✅ ¡Tu mototaxi ha llegado al punto!</b>").openPopup();
+                    if (markerMoto) markerMoto.bindPopup("<b>✅ ¡Tu mototaxi ha llegado!</b>").openPopup();
                 }
             }, 150);
         }
