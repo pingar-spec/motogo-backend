@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MotoGo Huaral - Tu Mototaxi de Confianza</title>
+    <title>MotoGo Huaral - Tu Mototaxi</title>
+    <!-- Leaflet CSS para el Mapa Interactivo -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root {
             --primary: #f0ad4e;
@@ -37,53 +39,64 @@
             display: flex;
             flex-direction: column;
             box-sizing: border-box;
+            position: relative;
         }
 
         @media (min-width: 430px) {
             .app-container {
                 height: 850px;
                 border-radius: 20px;
+                overflow: hidden;
             }
         }
 
-        /* Cabecera Empresarial */
         header {
             background-color: var(--secondary);
             color: white;
-            padding: 20px;
+            padding: 15px 20px;
             text-align: center;
-            border-top-left-radius: inherit;
-            border-top-right-radius: inherit;
+            z-index: 10;
         }
 
         header h1 {
             margin: 0;
-            font-size: 22px;
-            letter-spacing: 0.5px;
+            font-size: 20px;
         }
 
         header p {
-            margin: 5px 0 0;
-            font-size: 13px;
+            margin: 3px 0 0;
+            font-size: 12px;
             color: #bdc3c7;
         }
 
-        /* Cuerpo y Módulos */
         .content {
             flex: 1;
-            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
             overflow-y: auto;
         }
 
         .module {
             display: none;
+            flex: 1;
+            flex-direction: column;
+            padding: 20px;
         }
 
         .module.active {
-            display: block;
+            display: flex;
         }
 
-        /* Formularios y Botones */
+        /* Contenedor del Mapa Visual */
+        #map {
+            width: 100%;
+            height: 320px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
         .form-group {
             margin-bottom: 15px;
             text-align: left;
@@ -104,7 +117,6 @@
             border-radius: 8px;
             box-sizing: border-box;
             font-size: 15px;
-            transition: border-color 0.3s;
         }
 
         input[type="text"]:focus {
@@ -122,63 +134,83 @@
             border-radius: 8px;
             cursor: pointer;
             width: 100%;
-            transition: background 0.3s, transform 0.1s;
             box-shadow: 0 4px 10px rgba(240, 173, 78, 0.3);
+            transition: background 0.3s;
         }
 
         .btn:hover {
             background-color: var(--primary-dark);
         }
 
-        .btn:active {
-            transform: scale(0.98);
-        }
-
-        /* Tarjetas de Estado y Subasta */
         .card-info {
             background: #fff;
             border: 1px solid #e1e8ed;
-            border-radius: 10px;
-            padding: 15px;
-            margin-top: 15px;
+            border-radius: 12px;
+            padding: 18px;
+            margin-top: 10px;
             text-align: left;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-        }
-
-        .card-info h3 {
-            margin-top: 0;
-            color: var(--secondary);
-            font-size: 16px;
-            border-bottom: 2px solid var(--primary);
-            padding-bottom: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         }
 
         .status-badge {
             display: inline-block;
-            padding: 5px 10px;
+            padding: 5px 12px;
             border-radius: 20px;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: bold;
             text-transform: uppercase;
+            margin-bottom: 10px;
         }
 
         .status-search { background: #fef9e7; color: #d4ac0d; }
         .status-success { background: #eafaf1; color: var(--success); }
-        .status-error { background: #f5b7b1; color: var(--danger); }
+        .status-danger { background: #f5b7b1; color: var(--danger); }
 
-        /* Temporizador de Subasta */
-        .timer-container {
-            text-align: center;
-            margin: 15px 0;
+        .driver-card {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-top: 10px;
         }
 
-        .timer-circle {
+        .driver-avatar {
+            width: 55px;
+            height: 55px;
+            background: #dfe6e9;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             font-size: 24px;
+        }
+
+        .driver-details h4 {
+            margin: 0 0 4px;
+            font-size: 16px;
+            color: var(--secondary);
+        }
+
+        .driver-details p {
+            margin: 0;
+            font-size: 13px;
+            color: #636e72;
+        }
+
+        .timer-container {
+            text-align: center;
+            margin-top: 15px;
+            background: #fdfefe;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px dashed #bdc3c7;
+        }
+
+        .timer-digits {
+            font-size: 22px;
             font-weight: bold;
             color: var(--danger);
         }
 
-        /* Barra de Navegación Inferior */
         nav {
             display: flex;
             background: white;
@@ -197,7 +229,6 @@
             cursor: pointer;
             font-size: 12px;
             color: #7f8c8d;
-            transition: color 0.3s;
         }
 
         .nav-item.active {
@@ -210,151 +241,178 @@
 <body>
 
     <div class="app-container">
-        <!-- Cabecera -->
         <header>
             <h1>MotoGo Huaral</h1>
-            <p>Despacho inteligente por proximidad</p>
+            <p>Viaja seguro y rápido</p>
         </header>
 
-        <!-- Contenedor de Módulos -->
         <div class="content">
-            
-            <!-- MÓDULO 1: Solicitar Viaje -->
+            <!-- MÓDULO 1: INICIO Y MAPA -->
             <div id="modulo-home" class="module active">
-                <h2>¿A dónde viajamos hoy?</h2>
-                <p style="font-size: 14px; color: #666;">Detectamos tu ubicación GPS en Huaral al instante para asignarte la unidad más cercana.</p>
+                <div id="map"></div>
                 
                 <div class="form-group">
-                    <label for="destino">Destino en Huaral</label>
-                    <input type="text" id="destino" placeholder="Ej. Mercado Modelo, Plaza de Armas...">
+                    <label for="destino">¿A qué lugar de Huaral vamos?</label>
+                    <input type="text" id="destino" placeholder="Ej. Plaza de Armas, Mercado Modelo...">
                 </div>
 
-                <button class="btn" onclick="solicitarMototaxi()">Pedir Mototaxi Ahora</button>
-
-                <div id="resultado-home"></div>
+                <button class="btn" onclick="solicitarMototaxi()">Solicitar Mototaxi</button>
             </div>
 
-            <!-- MÓDULO 2: Estado del Viaje y Subasta -->
+            <!-- MÓDULO 2: ESTADO DEL VIAJE (SUBASTA) -->
             <div id="modulo-estado" class="module">
-                <h2>Estado de la Carrera</h2>
+                <h2>Estado de tu Viaje</h2>
                 <div id="contenido-estado">
-                    <p style="color: #666; text-align: center; margin-top: 40px;">No tienes ninguna solicitud activa en este momento.</p>
+                    <p style="color: #666; text-align: center; margin-top: 40px;">No tienes ningún viaje en curso.</p>
                 </div>
             </div>
 
-            <!-- MÓDULO 3: Información y Soporte -->
+            <!-- MÓDULO 3: INFORMACIÓN -->
             <div id="modulo-info" class="module">
-                <h2>Sobre MotoGo</h2>
+                <h2>Ayuda y Términos</h2>
                 <div class="card-info">
-                    <h3>Modelo Operativo</h3>
-                    <p style="font-size: 13px; line-height: 1.5;">Sistema automatizado de despacho por proximidad geográfica (Fórmula de Haversine) enfocado en conectar pasajeros con mototaxistas formales suscritos en Huaral.</p>
-                </div>
-                <div class="card-info">
-                    <h3>Seguridad y Tarifas</h3>
-                    <p style="font-size: 13px; line-height: 1.5;">Subasta rápida de asignación de 20 segundos por solicitud directa. Sin cobros ocultos.</p>
+                    <h3 style="margin-top:0; color:var(--secondary);">MotoGo Pasajero</h3>
+                    <p style="font-size: 13px; line-height: 1.5;">Tu solicitud se despacha automáticamente por proximidad geolocalizada a los mototaxistas formales suscritos en Huaral.</p>
                 </div>
             </div>
-
         </div>
 
-        <!-- Barra de Navegación por Módulos -->
         <nav>
             <button class="nav-item active" onclick="cambiarModulo('home', this)">Inicio</button>
-            <button class="nav-item" onclick="cambiarModulo('estado', this)" id="btn-tab-estado">Estado</button>
+            <button class="nav-item" onclick="cambiarModulo('estado', this)" id="btn-tab-estado">Viaje</button>
             <button class="nav-item" onclick="cambiarModulo('info', this)">Info</button>
         </nav>
     </div>
 
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // URL de tu Backend (Cambiar por tu URL de Render cuando esté desplegado, ej: https://motogo-backend.onrender.com)
-        const BACKEND_URL = "https://motogo-backend-kx9f.onrender.com"; 
+        const BACKEND_URL = "https://motogo-backend-kx9f.onrender.com";
+        let map, userMarker;
         let intervaloTimer = null;
 
-        function cambiarModulo(nombreModulo, elementoBtn) {
-            // Ocultar todos los módulos
-            document.querySelectorAll('.module').forEach(m => m.classList.remove('active'));
-            document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+        // Inicializar Mapa centrado en Huaral por defecto
+        function initMap(lat = -11.4932, lon = -77.2044) {
+            if (!map) {
+                map = L.map('map').setView([lat, lon], 15);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; OpenStreetMap contributors'
+                }).addTo(map);
+            } else {
+                map.setView([lat, lon], 15);
+            }
 
-            // Mostrar el seleccionado
-            document.getElementById(`modulo-${nombreModulo}`).classList.add('active');
-            elementoBtn.classList.add('active');
+            if (userMarker) {
+                userMarker.setLatLng([lat, lon]);
+            } else {
+                userMarker = L.marker([lat, lon]).addTo(map).bindPopup("Tu ubicación actual").openPopup();
+            }
         }
 
-        function solicitarMototaxi() {
-            const destino = document.getElementById("destino").value;
-            const contenedorResultado = document.getElementById("resultado-home");
+        // Obtener GPS real al abrir la app
+        window.onload = function() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(position => {
+                    initMap(position.coords.latitude, position.coords.longitude);
+                }, () => {
+                    initMap(); // Centro de Huaral por defecto si deniega el GPS
+                });
+            } else {
+                initMap();
+            }
+        };
 
-            if (!navigator.geolocation) {
-                alert("Tu dispositivo no soporta geolocalización.");
+        function cambiarModulo(nombre, btn) {
+            document.querySelectorAll('.module').forEach(m => m.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+            document.getElementById(`modulo-${nombre}`).classList.add('active');
+            btn.classList.add('active');
+            if (nombre === 'home' && map) {
+                setTimeout(() => { map.invalidateSize(); }, 200);
+            }
+        }
+
+        async function solicitarMototaxi() {
+            const destino = document.getElementById("destino").value;
+            if (!destino) {
+                alert("Por favor ingresa un destino.");
                 return;
             }
 
-            contenedorResultado.innerHTML = `<div class="card-info"><p class="status-badge status-search">Obteniendo coordenadas GPS en Huaral...</p></div>`;
+            if (!navigator.geolocation) {
+                alert("El GPS no está disponible en este dispositivo.");
+                return;
+            }
 
             navigator.geolocation.getCurrentPosition(async (position) => {
                 const lat = position.coords.latitude;
                 const lon = position.coords.longitude;
 
-                contenedorResultado.innerHTML = `<div class="card-info"><p class="status-badge status-search">Buscando mototaxi más cercano...</p></div>`;
+                // Cambiar automáticamente a la pestaña de estado del viaje
+                document.getElementById("btn-tab-estado").click();
+                const contenido = document.getElementById("contenido-estado");
+
+                contenido.innerHTML = `
+                    <div class="card-info" style="text-align: center;">
+                        <span class="status-badge status-search">Buscando Unidad</span>
+                        <p>Localizando mototaxi disponible cerca de ti en Huaral...</p>
+                    </div>
+                `;
 
                 try {
                     const response = await fetch(`${BACKEND_URL}/api/solicitar-viaje?lat=${lat}&lon=${lon}&destino=${encodeURIComponent(destino)}`, {
                         method: 'POST'
                     });
-
                     const data = await response.json();
 
                     if (response.ok) {
-                        // Cambiamos automáticamente al módulo de estado para mostrar la subasta
-                        document.getElementById("btn-tab-estado").click();
                         iniciarVistaSubasta(data);
                     } else {
-                        contenedorResultado.innerHTML = `<div class="card-info"><p style="color: var(--danger);">${data.mensaje || 'No hay conductores'}</p></div>`;
+                        contenido.innerHTML = `<div class="card-info"><span class="status-badge status-danger">Sin Unidades</span><p>${data.mensaje || 'No hay conductores disponibles en este momento.'}</p></div>`;
                     }
-                } catch (error) {
-                    contenedorResultado.innerHTML = `<div class="card-info"><p style="color: var(--danger);">Error de conexión con el servidor.</p></div>`;
-                    console.error(error);
+                } catch (err) {
+                    contenido.innerHTML = `<div class="card-info"><span class="status-badge status-danger">Error de Conexión</span><p>No se pudo conectar con el servidor en la nube.</p></div>`;
                 }
-            }, (error) => {
-                alert("Por favor, activa el GPS de tu celular para solicitar el viaje.");
-                contenedorResultado.innerHTML = "";
+            }, () => {
+                alert("Debes activar los permisos de GPS para pedir el viaje.");
             }, { enableHighAccuracy: true });
         }
 
         function iniciarVistaSubasta(data) {
-            const contenedorEstado = document.getElementById("contenido-estado");
-            let segundosRestantes = 20;
+            const contenido = document.getElementById("contenido-estado");
+            let segundos = 20;
 
             if (intervaloTimer) clearInterval(intervaloTimer);
 
-            contenedorEstado.innerHTML = `
+            contenido.innerHTML = `
                 <div class="card-info">
-                    <span class="status-badge status-search">Subasta Activa</span>
-                    <h3>Unidad Asignada por Proximidad</h3>
-                    <p><strong>Conductor:</strong> ${data.conductor_asignado}</p>
-                    <p><strong>Placa:</strong> ${data.placa}</p>
-                    <p><strong>Distancia:</strong> ${data.distancia_metros.toFixed(0)} metros</p>
-                    
+                    <span class="status-badge status-search">Unidad Encontrada</span>
+                    <div class="driver-card">
+                        <div class="driver-avatar">🛺</div>
+                        <div class="driver-details">
+                            <h4>${data.conductor_asignado}</h4>
+                            <p><strong>Placa:</strong> ${data.placa}</p>
+                            <p style="color: var(--success); font-weight: 500; margin-top: 4px;">En camino hacia tu ubicación</p>
+                        </div>
+                    </div>
                     <div class="timer-container">
-                        <p style="margin: 0; font-size: 13px; color: #666;">Esperando confirmación del conductor:</p>
-                        <div class="timer-circle" id="contador-segundos">20s</div>
+                        <span style="font-size: 12px; color: #555;">Sincronizando asignación:</span>
+                        <div class="timer-digits" id="reloj-subasta">20s</div>
                     </div>
                 </div>
             `;
 
             intervaloTimer = setInterval(() => {
-                segundosRestantes--;
-                const timerElement = document.getElementById("contador-segundos");
-                if (timerElement) {
-                    timerElement.innerText = segundosRestantes + "s";
-                }
+                segundos--;
+                const reloj = document.getElementById("reloj-subasta");
+                if (reloj) reloj.innerText = segundos + "s";
 
-                if (segundosRestantes <= 0) {
+                if (segundos <= 0) {
                     clearInterval(intervaloTimer);
-                    contenedorEstado.innerHTML = `
-                        <div class="card-info">
-                            <span class="status-badge status-error">Tiempo Expirado</span>
-                            <p>El conductor no respondió a tiempo. Buscando siguiente unidad cercana...</p>
+                    contenido.innerHTML = `
+                        <div class="card-info" style="text-align: center;">
+                            <span class="status-badge status-danger">Búsqueda Ampliada</span>
+                            <p>Buscando otra unidad disponible en la zona...</p>
                         </div>
                     `;
                 }

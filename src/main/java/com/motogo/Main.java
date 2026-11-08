@@ -1,139 +1,156 @@
 package com.motogo;
 
-import com.motogo.model.Conductor;
-import com.motogo.service.GeolocalizacionService;
 import io.javalin.Javalin;
-import java.util.ArrayList;
+import java.sql.*;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 public class Main {
-    private static List<Conductor> listaConductores = new ArrayList<>();
-    private static Map<String, ViajeEnSubasta> viajesActivos = new HashMap<>();
+
+    // Credenciales de tu clúster en TiDB Cloud
+    private static final String HOST = "gateway01.sa-east-1.prod.aws.tidbcloud.com";
+    private static final String PORT = "4000";
+    private static final String USER = "VqAp2wi3ep6JvL1.root";
+    private static final String PASSWORD = "wYgdmBp2KH2hG3FM"; // Reemplaza con tu contraseña real
 
     public static void main(String[] args) {
-        inicializarConductoresHuaral();
+        // 1. Inicializar la base de datos y tablas automáticamente en la nube
+        inicializarBaseDeDatosNacional();
 
-        int port = getPort();
+        // 2. Configurar y arrancar el servidor Javalin
+        var app = Javalin.create().start(7070);
 
-        Javalin app = Javalin.create(config -> {
-            config.bundledPlugins.enableCors(cors -> {
-                cors.addRule(it -> {
-                    it.anyHost();
-                });
-            });
-        }).start(port);
-
-        app.get("/", ctx -> {
-            ctx.result("¡Servidor MotoGo Backend en Huaral funcionando correctamente!");
+        // Habilitar CORS de manera universal y segura
+        app.before(ctx -> {
+            ctx.header("Access-Control-Allow-Origin", "*");
+            ctx.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+            ctx.header("Access-Control-Allow-Headers", "*");
         });
 
-        // 1. Endpoint para que el pasajero solicite viaje (Despacho por Proximidad)
+        System.out.println("¡Servidor MotoGo Backend Nacional corriendo en el puerto 7070!");
+
+       app.get("/", ctx -> {
+            ctx.contentType("text/plain; charset=utf-8");
+            ctx.result("\u00A1Servidor MotoGo Backend Nacional Activo en la Nube!");
+        });
+
+
+        // 3. Endpoint principal para solicitar viaje con Haversine a nivel nacional
         app.post("/api/solicitar-viaje", ctx -> {
-            Double latPasajero = ctx.queryParamAsClass("lat", Double.class).get();
-            Double lonPasajero = ctx.queryParamAsClass("lon", Double.class).get();
+            String latStr = ctx.queryParam("lat");
+            String lonStr = ctx.queryParam("lon");
             String destino = ctx.queryParam("destino");
 
-            if (latPasajero == null || lonPasajero == null) {
-                ctx.status(400).json("{\"error\": \"Se requieren la latitud y longitud del pasajero\"}");
+            if (latStr == null || lonStr == null) {
+                ctx.status(400).json(Map.of("mensaje", "Faltan coordenadas GPS del pasajero."));
                 return;
             }
 
-            System.out.println("Solicitud de viaje hacia: " + (destino != null ? destino : "Destino no especificado"));
+            double pasajeroLat = Double.parseDouble(latStr);
+            double pasajeroLon = Double.parseDouble(lonStr);
 
-            Conductor mejorConductor = null;
-            double menorDistancia = Double.MAX_VALUE;
+            Map<String, Object> conductorAsignado = buscarConductorMasCercano(pasajeroLat, pasajeroLon);
 
-            for (Conductor c : listaConductores) {
-                if (c.isDisponible() && c.isSuscripcionActiva()) {
-                    double distancia = GeolocalizacionService.calcularDistanciaMetros(
-                        latPasajero, lonPasajero, c.getLatitud(), c.getLongitud()
-                    );
+            if (conductorAsignado != null) {
+                ctx.json(Map.of(
+                    "exito", true,
+                    "conductor_asignado", conductorAsignado.get("nombre"),
+                    "placa", conductorAsignado.get("placa"),
+                    "distancia_km", conductorAsignado.get("distancia"),
+                    "destino", destino != null ? destino : "Destino general"
+                ));
+            } else {
+                ctx.status(404).json(Map.of("mensaje", "No hay unidades disponibles en este momento a nivel nacional."));
+            }
+        });
+    }
 
-                    if (distancia < menorDistancia) {
-                        menorDistancia = distancia;
-                        mejorConductor = c;
-                    }
+    private static void inicializarBaseDeDatosNacional() {
+        String urlServidor = "jdbc:mysql://" + HOST + ":" + PORT + "?sslMode=VERIFY_IDENTITY";
+        
+        try (Connection conn = DriverManager.getConnection(urlServidor, USER, PASSWORD);
+             Statement stmt = conn.createStatement()) {
+            
+            stmt.executeUpdate("CREATE DATABASE IF NOT EXISTS motogo_db;");
+            stmt.executeUpdate("USE motogo_db;");
+
+            stmt.executeUpdate("CREATE TABLE IF NOT EXISTS ciudades (" +
+                    "id INT AUTO_INCREMENT PRIMARY KEY, " +
+                    "nombre VARCHAR(100) NOT NULL, " +
+                    "departamento VARCHAR(100) NOT NULL, " +
+                    "activo BOOLEAN DEFAULT TRUE);");
+
+            stmt.executeUpdate("CREATE TABLE IF NOT EXISTS conductores (" +
+                    "id INT AUTO_INCREMENT PRIMARY KEY, " +
+                    "nombre VARCHAR(150) NOT NULL, " +
+                    "placa VARCHAR(20) NOT NULL UNIQUE, " +
+                    "ciudad_id INT, " +
+                    "latitud DECIMAL(10, 8) NOT NULL, " +
+                    "longitud DECIMAL(11, 8) NOT NULL, " +
+                    "disponible BOOLEAN DEFAULT TRUE, " +
+                    "FOREIGN KEY (ciudad_id) REFERENCES ciudades(id));");
+
+            stmt.executeUpdate("INSERT IGNORE INTO ciudades (id, nombre, departamento) VALUES " +
+                    "(1, 'Huaral', 'Lima'), " +
+                    "(2, 'Lima Centro', 'Lima'), " +
+                    "(3, 'Arequipa', 'Arequipa'), " +
+                    "(4, 'Trujillo', 'La Libertad');");
+
+            stmt.executeUpdate("INSERT IGNORE INTO conductores (nombre, placa, ciudad_id, latitud, longitud, disponible) VALUES " +
+                    "('Carlos Pérez', 'XYZ-789', 1, -11.493200, -77.204400, TRUE), " +
+                    "('Luis Quispe', 'ABC-123', 2, -12.046400, -77.042800, TRUE), " +
+                    "('Juan Mamani', 'ARE-456', 3, -16.409040, -71.537450, TRUE);");
+
+            System.out.println("Base de datos motogo_db verificada y lista en TiDB Cloud.");
+
+        } catch (Exception e) {
+            System.err.println("Error al conectar o inicializar TiDB Cloud: " + e.getMessage());
+        }
+    }
+
+    private static Map<String, Object> buscarConductorMasCercano(double pLat, double pLon) {
+        String urlDb = "jdbc:mysql://" + HOST + ":" + PORT + "/motogo_db?sslMode=VERIFY_IDENTITY";
+        Map<String, Object> mejorConductor = null;
+        double menorDistancia = Double.MAX_VALUE;
+
+        String query = "SELECT nombre, placa, latitud, longitud FROM conductores WHERE disponible = TRUE";
+
+        try (Connection conn = DriverManager.getConnection(urlDb, USER, PASSWORD);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(query)) {
+
+            while (rs.next()) {
+                String nombre = rs.getString("nombre");
+                String placa = rs.getString("placa");
+                double cLat = rs.getDouble("latitud");
+                double cLon = rs.getDouble("longitud");
+
+                double distancia = calcularHaversine(pLat, pLon, cLat, cLon);
+
+                if (distancia < menorDistancia) {
+                    menorDistancia = distancia;
+                    mejorConductor = new HashMap<>();
+                    mejorConductor.put("nombre", nombre);
+                    mejorConductor.put("placa", placa);
+                    mejorConductor.put("distancia", Math.round(distancia * 100.0) / 100.0);
                 }
             }
 
-            if (mejorConductor != null) {
-                String idSolicitud = UUID.randomUUID().toString().substring(0, 8);
-                long tiempoExpiracion = System.currentTimeMillis() + 20000; // 20 segundos de subasta
-
-                ViajeEnSubasta viaje = new ViajeEnSubasta(mejorConductor.getId(), tiempoExpiracion);
-                viajesActivos.put(idSolicitud, viaje);
-
-                ctx.status(200).json(String.format(
-                    "{\"status\": \"SUBASTA_INICIADA\", \"id_solicitud\": \"%s\", \"conductor_asignado\": \"%s\", \"placa\": \"%s\", \"distancia_metros\": %.2f, \"tiempo_limite_segundos\": 20}",
-                    idSolicitud, mejorConductor.getNombre(), mejorConductor.getPlaca(), menorDistancia
-                ));
-            } else {
-                ctx.status(404).json("{\"status\": \"SIN_CONDUCTORES\", \"mensaje\": \"No hay mototaxistas disponibles cerca en este momento\"}");
-            }
-        });
-
-        // 2. Endpoint para que el conductor acepte la carrera dentro de los 20 segundos
-        app.post("/api/aceptar-viaje", ctx -> {
-            String idSolicitud = ctx.queryParam("id_solicitud");
-            String conductorId = ctx.queryParam("conductor_id");
-
-            ViajeEnSubasta viaje = viajesActivos.get(idSolicitud);
-
-            if (viaje == null) {
-                ctx.status(404).json("{\"error\": \"La solicitud de viaje no existe o ya expiró.\"}");
-                return;
-            }
-
-            long tiempoActual = System.currentTimeMillis();
-            if (tiempoActual > viaje.getTiempoExpiracion()) {
-                ctx.status(400).json("{\"error\": \"El tiempo de subasta de 20 segundos ha expirado.\"}");
-                viajesActivos.remove(idSolicitud);
-                return;
-            }
-
-            if (viaje.getConductorId().equals(conductorId)) {
-                ctx.status(200).json("{\"status\": \"VIAJE_ACEPTADO\", \"mensaje\": \"¡Carrera asignada con éxito! Dirígete al punto del pasajero.\"}");
-                viajesActivos.remove(idSolicitud);
-            } else {
-                ctx.status(403).json("{\"error\": \"Este viaje no fue asignado a este conductor.\"}");
-            }
-        });
-
-        System.out.println("==================================================");
-        System.out.println(" Servidor MotoGo Huaral iniciado en el puerto: " + port);
-        System.out.println("==================================================");
-    }
-
-    private static void inicializarConductoresHuaral() {
-        listaConductores.add(new Conductor("1", "Tío de Piero", "ABC-123", -11.5055, -77.2111, true, true));
-        listaConductores.add(new Conductor("2", "Carlos Pérez", "XYZ-789", -11.5080, -77.2150, true, true));
-    }
-
-    private static int getPort() {
-        String portEnv = System.getenv("PORT");
-        if (portEnv != null && !portEnv.isEmpty()) {
-            try {
-                return Integer.parseInt(portEnv);
-            } catch (NumberFormatException e) {
-                System.out.println("Puerto inválido, usando 7070 por defecto.");
-            }
-        }
-        return 7070;
-    }
-
-    private static class ViajeEnSubasta {
-        private String conductorId;
-        private long tiempoExpiracion;
-
-        public ViajeEnSubasta(String conductorId, long tiempoExpiracion) {
-            this.conductorId = conductorId;
-            this.tiempoExpiracion = tiempoExpiracion;
+        } catch (Exception e) {
+            System.err.println("Error en búsqueda por Haversine: " + e.getMessage());
         }
 
-        public String getConductorId() { return conductorId; }
-        public long getTiempoExpiracion() { return tiempoExpiracion; }
+        return mejorConductor;
+    }
+
+    private static double calcularHaversine(double lat1, double lon1, double lat2, double lon2) {
+        final int R = 6371;
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                   Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+                   Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
     }
 }
