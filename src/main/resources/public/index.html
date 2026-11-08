@@ -4,12 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MotoGo - Tu Mototaxi en Línea</title>
-    <!-- Leaflet CSS para el mapa -->
+    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        body { display: flex; height: 100vh; background-color: #f4f7f6; color: #333; }
-        #sidebar { width: 380px; background: white; padding: 25px; box-shadow: 4px 0 15px rgba(0,0,0,0.05); display: flex; flex-direction: column; z-index: 1000; }
+        body { display: flex; height: 100vh; background-color: #f4f7f6; color: #333; overflow: hidden; }
+        #sidebar { width: 380px; background: white; padding: 25px; box-shadow: 4px 0 15px rgba(0,0,0,0.05); display: flex; flex-direction: column; z-index: 1000; overflow-y: auto; }
         #map { flex-grow: 1; height: 100%; }
         h1 { color: #ff5722; font-size: 26px; margin-bottom: 5px; font-weight: 700; }
         p.subtitle { color: #666; font-size: 14px; margin-bottom: 25px; }
@@ -24,6 +24,13 @@
         #resultado p { font-size: 14px; margin-bottom: 5px; color: #555; }
         .badge { display: inline-block; background: #ffebee; color: #c62828; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-bottom: 8px; }
         .badge.success { background: #e8f5e9; color: #2e7d32; }
+
+        /* Adaptación perfecta para celulares */
+        @media (max-width: 768px) {
+            body { flex-direction: column; overflow: auto; }
+            #sidebar { width: 100%; max-height: 45vh; }
+            #map { width: 100%; height: 55vh; min-height: 300px; }
+        }
     </style>
 </head>
 <body>
@@ -56,27 +63,36 @@
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // Inicializar mapa centrado por defecto en Perú
-        const map = L.map('map').setView([-12.0464, -77.0428], 14);
+        // Inicializar mapa centrado en Lima por defecto
+        const map = L.map('map').setView([-12.0464, -77.0428], 15);
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        // Capa Satelital de alta definición estilo Google Earth (Esri World Imagery)
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
             maxZoom: 19,
-            attribution: '© OpenStreetMap'
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+        }).addTo(map);
+
+        // Añadir una capa de etiquetas de calles por encima de la satelital para ver nombres de vías claramente
+        L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+            maxZoom: 19,
+            opacity: 0.8
         }).addTo(map);
 
         let markerPasajero = null;
+        let markerMoto = null;
+        let pasajeroLat = -12.0464;
+        let pasajeroLon = -77.0428;
 
-        // Obtener ubicación GPS real del pasajero al cargar la página
+        // Obtener ubicación GPS real del pasajero
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(position => {
-                const lat = position.coords.latitude;
-                const lon = position.coords.longitude;
+                pasajeroLat = position.coords.latitude;
+                pasajeroLon = position.coords.longitude;
 
-                document.getElementById('ubicacion').value = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+                document.getElementById('ubicacion').value = `${pasajeroLat.toFixed(5)}, ${pasajeroLon.toFixed(5)}`;
                 
-                // Centrar mapa y poner marcador
-                map.setView([lat, lon], 15);
-                markerPasajero = L.marker([lat, lon]).addTo(map)
+                map.setView([pasajeroLat, pasajeroLon], 17); // Zoom más cercano estilo satelital detallado
+                markerPasajero = L.marker([pasajeroLat, pasajeroLon]).addTo(map)
                     .bindPopup("<b>¡Tú estás aquí!</b>")
                     .openPopup();
             }, error => {
@@ -86,20 +102,9 @@
 
         async function solicitarViaje() {
             const destino = document.getElementById('destino').value;
-            const ubicacionTexto = document.getElementById('ubicacion').value;
-
             if (!destino) {
                 alert("Por favor ingresa tu destino.");
                 return;
-            }
-
-            // Extraer lat y lon del input o usar valores por defecto si el GPS tardó
-            let lat = -12.0464;
-            let lon = -77.0428;
-            if (ubicacionTexto.includes(",")) {
-                const parts = ubicacionTexto.split(",");
-                lat = parseFloat(parts[0]);
-                lon = parseFloat(parts[1]);
             }
 
             const resDiv = document.getElementById('resultado');
@@ -114,8 +119,7 @@
             detalle.innerText = "Calculando la ruta óptima por proximidad...";
 
             try {
-                // Petición POST a tu backend en Render
-                const response = await fetch(`/api/solicitar-viaje?lat=${lat}&lon=${lon}&destino=${encodeURIComponent(destino)}`, {
+                const response = await fetch(`/api/solicitar-viaje?lat=${pasajeroLat}&lon=${pasajeroLon}&destino=${encodeURIComponent(destino)}`, {
                     method: 'POST'
                 });
 
@@ -126,6 +130,10 @@
                     badge.innerText = "CONDUCTOR ASIGNADO";
                     titulo.innerText = `¡Mototaxi en camino: ${data.conductor_asignado}!`;
                     detalle.innerHTML = `<strong>Placa:</strong> ${data.placa} <br><strong>Distancia:</strong> ${data.distancia_km} km <br><strong>Destino:</strong> ${data.destino}`;
+
+                    // Simular la moto acercándose desde un punto cercano en el mapa satelital
+                    simularMovimientoMoto(pasajeroLat + 0.003, pasajeroLon + 0.003, pasajeroLat, pasajeroLon);
+
                 } else {
                     badge.className = "badge";
                     badge.innerText = "SIN UNIDADES";
@@ -138,6 +146,45 @@
                 titulo.innerText = "Error de conexión";
                 detalle.innerText = "No se pudo comunicar con el servidor en la nube.";
             }
+        }
+
+        // Función para animar el acercamiento de la moto en tiempo real en el mapa
+        function simularMovimientoMoto(latIni, lonIni, latFin, lonFin) {
+            if (markerMoto) {
+                map.removeLayer(markerMoto);
+            }
+
+            // Icono personalizado para la mototaxi
+            const motoIcon = L.divIcon({
+                html: '🛵',
+                className: 'custom-moto-icon',
+                iconSize: [30, 30]
+            });
+
+            let currentLat = latIni;
+            let currentLon = lonIni;
+            markerMoto = L.marker([currentLat, currentLon], { icon: motoIcon }).addTo(map)
+                .bindPopup("<b>Mototaxi en camino</b>").openPopup();
+
+            let pasos = 50;
+            let step = 0;
+
+            let intervalo = setInterval(() => {
+                step++;
+                currentLat += (latFin - currentLat) / (pasazos = 50 - step + 1);
+                currentLon += (lonFin - currentLon) / (pasazos = 50 - step + 1);
+                
+                if (markerMoto) {
+                    markerMoto.setLatLng([currentLat, currentLon]);
+                }
+
+                if (step >= 50) {
+                    clearInterval(intervalo);
+                    if (markerMoto) {
+                        markerMoto.bindPopup("<b>¡Tu mototaxi ha llegado!</b>").openPopup();
+                    }
+                }
+            }, 200);
         }
     </script>
 </body>
