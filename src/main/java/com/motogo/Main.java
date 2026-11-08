@@ -29,12 +29,6 @@ public class Main {
             ctx.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
             ctx.header("Access-Control-Allow-Headers", "*");
         });
-        // Habilitar CORS de manera universal y segura
-        app.before(ctx -> {
-            ctx.header("Access-Control-Allow-Origin", "*");
-            ctx.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-            ctx.header("Access-Control-Allow-Headers", "*");
-        });
 
         System.out.println("¡Servidor MotoGo Backend Nacional corriendo en el puerto 7070!");
 
