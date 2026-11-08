@@ -7,18 +7,16 @@ import java.util.Map;
 
 public class Main {
 
-    // Credenciales de tu clúster en TiDB Cloud
     private static final String HOST = "gateway01.sa-east-1.prod.aws.tidbcloud.com";
     private static final String PORT = "4000";
     private static final String USER = "VqAp2wi3ep6JvL1.root";
-    private static final String PASSWORD = "wYgdmBp2KH2hG3FM"; // Reemplaza con tu contraseña real
+    private static final String PASSWORD = "TU_CONTRASEÑA_AQUÍ"; // Reemplaza con tu contraseña real
 
     public static void main(String[] args) {
         // 1. Inicializar la base de datos y tablas automáticamente en la nube
         inicializarBaseDeDatosNacional();
 
-        // 2. Configurar y arrancar el servidor Javalin
-       // 2. Configurar Javalin con archivos estáticos y arrancar
+        // 2. Configurar Javalin sirviendo la carpeta estática /public y arrancar en el puerto 7070
         var app = Javalin.create(config -> {
             config.staticFiles.add("/public", io.javalin.http.staticfiles.Location.CLASSPATH);
         }).start(7070);
@@ -30,9 +28,8 @@ public class Main {
             ctx.header("Access-Control-Allow-Headers", "*");
         });
 
-        System.out.println("¡Servidor MotoGo Backend Nacional corriendo en el puerto 7070!");
+        System.out.println("¡Servidor MotoGo Backend Nacional Activo en la Nube!");
 
-    
         // 3. Endpoint principal para solicitar viaje con Haversine a nivel nacional
         app.post("/api/solicitar-viaje", ctx -> {
             String latStr = ctx.queryParam("lat");
@@ -59,6 +56,37 @@ public class Main {
                 ));
             } else {
                 ctx.status(404).json(Map.of("mensaje", "No hay unidades disponibles en este momento a nivel nacional."));
+            }
+        });
+
+        // 4. Endpoint para el registro y conexión en tiempo real de conductores reales
+        app.post("/api/registrar-conductor", ctx -> {
+            String nombre = ctx.formParam("nombre");
+            String placa = ctx.formParam("placa");
+            String latStr = ctx.formParam("lat");
+            String lonStr = ctx.formParam("lon");
+
+            if (nombre == null || placa == null || latStr == null || lonStr == null) {
+                ctx.status(400).json(Map.of("exito", false, "mensaje", "Faltan datos del conductor."));
+                return;
+            }
+
+            String urlDb = "jdbc:mysql://" + HOST + ":" + PORT + "/motogo_db?sslMode=VERIFY_IDENTITY";
+            String query = "INSERT INTO conductores (nombre, placa, ciudad_id, latitud, longitud, disponible) VALUES (?, ?, 2, ?, ?, TRUE) " +
+                           "ON DUPLICATE KEY UPDATE latitud = VALUES(latitud), longitud = VALUES(longitud), disponible = TRUE";
+
+            try (Connection conn = DriverManager.getConnection(urlDb, USER, PASSWORD);
+                 PreparedStatement pstmt = conn.prepareStatement(query)) {
+                
+                pstmt.setString(1, nombre);
+                pstmt.setString(2, placa);
+                pstmt.setDouble(3, Double.parseDouble(latStr));
+                pstmt.setDouble(4, Double.parseDouble(lonStr));
+                pstmt.executeUpdate();
+
+                ctx.json(Map.of("exito", true, "mensaje", "Conductor registrado y activo correctamente."));
+            } catch (Exception e) {
+                ctx.status(500).json(Map.of("exito", false, "error", e.getMessage()));
             }
         });
     }
@@ -93,11 +121,6 @@ public class Main {
                     "(2, 'Lima Centro', 'Lima'), " +
                     "(3, 'Arequipa', 'Arequipa'), " +
                     "(4, 'Trujillo', 'La Libertad');");
-
-            stmt.executeUpdate("INSERT IGNORE INTO conductores (nombre, placa, ciudad_id, latitud, longitud, disponible) VALUES " +
-                    "('Carlos Pérez', 'XYZ-789', 1, -11.493200, -77.204400, TRUE), " +
-                    "('Luis Quispe', 'ABC-123', 2, -12.046400, -77.042800, TRUE), " +
-                    "('Juan Mamani', 'ARE-456', 3, -16.409040, -71.537450, TRUE);");
 
             System.out.println("Base de datos motogo_db verificada y lista en TiDB Cloud.");
 
