@@ -32,12 +32,7 @@ public class Main {
 
         System.out.println("¡Servidor MotoGo Backend Nacional corriendo en el puerto 7070!");
 
-       app.get("/", ctx -> {
-            ctx.contentType("text/plain; charset=utf-8");
-            ctx.result("\u00A1Servidor MotoGo Backend Nacional Activo en la Nube!");
-        });
-
-
+    
         // 3. Endpoint principal para solicitar viaje con Haversine a nivel nacional
         app.post("/api/solicitar-viaje", ctx -> {
             String latStr = ctx.queryParam("lat");
