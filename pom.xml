@@ -32,8 +32,8 @@
 
     <build>
         <plugins>
-            <!-- Plugin para empaquetar en un JAR ejecutable con dependencias -->
-            <dependency>
+            <!-- Plugin corregido con la etiqueta <plugin> -->
+            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
                 <version>3.7.1</version>
@@ -55,7 +55,7 @@
                         </configuration>
                     </execution>
                 </executions>
-            </dependency>
+            </plugin>
         </plugins>
     </build>
 </project>
