@@ -3,57 +3,97 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MotoGo - Tu Mototaxi en Línea</title>
+    <title>MotoGo - Plataforma Inteligente de Movilidad</title>
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Leaflet Heatmap Plugin -->
+    <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        body { display: flex; height: 100vh; background-color: #f4f7f6; color: #333; overflow: hidden; }
-        #sidebar { width: 380px; background: white; padding: 25px; box-shadow: 4px 0 15px rgba(0,0,0,0.05); display: flex; flex-direction: column; z-index: 1000; overflow-y: auto; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+        body { display: flex; height: 100vh; background-color: #0f172a; color: #1e293b; overflow: hidden; }
+        
+        #sidebar { 
+            width: 420px; background: #ffffff; padding: 30px; 
+            box-shadow: 10px 0 30px rgba(0,0,0,0.15); display: flex; 
+            flex-direction: column; z-index: 1000; overflow-y: auto; 
+        }
+        
         #map { flex-grow: 1; height: 100%; }
-        h1 { color: #ff5722; font-size: 26px; margin-bottom: 5px; font-weight: 700; }
-        p.subtitle { color: #666; font-size: 14px; margin-bottom: 25px; }
-        .form-group { margin-bottom: 20px; }
-        label { display: block; font-weight: 600; margin-bottom: 8px; font-size: 13px; color: #444; }
-        input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; outline: none; transition: border-color 0.3s; }
-        input:focus { border-color: #ff5722; }
-        button { background-color: #ff5722; color: white; border: none; padding: 14px; width: 100%; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; transition: background 0.3s; }
-        button:hover { background-color: #e64a19; }
-        #resultado { margin-top: 25px; padding: 15px; background: #fff8f5; border: 1px solid #ffccbc; border-radius: 8px; display: none; }
-        #resultado h3 { color: #d84315; font-size: 16px; margin-bottom: 8px; }
-        #resultado p { font-size: 14px; margin-bottom: 5px; color: #555; }
-        .badge { display: inline-block; background: #ffebee; color: #c62828; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-bottom: 8px; }
-        .badge.success { background: #e8f5e9; color: #2e7d32; }
 
-        /* Adaptación perfecta para celulares */
+        .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 25px; }
+        .brand h1 { color: #f97316; font-size: 28px; font-weight: 800; letter-spacing: -0.5px; }
+        .brand span { background: #ffedd5; color: #c2410c; font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 6px; text-transform: uppercase; }
+
+        .card-panel { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 20px; margin-bottom: 20px; }
+        .form-group { margin-bottom: 16px; }
+        label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+        
+        input { 
+            width: 100%; padding: 14px; border: 1px solid #cbd5e1; border-radius: 10px; 
+            font-size: 14px; background: #ffffff; color: #0f172a; outline: none; transition: all 0.2s; 
+        }
+        input:focus { border-color: #f97316; box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15); }
+
+        .btn-primary { 
+            background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); color: white; border: none; 
+            padding: 16px; width: 100%; border-radius: 10px; font-size: 15px; font-weight: 700; 
+            cursor: pointer; box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3); transition: transform 0.1s, opacity 0.2s; 
+        }
+        .btn-primary:hover { opacity: 0.95; transform: translateY(-1px); }
+
+        .layer-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 20px; }
+        .layer-btn { 
+            background: #f1f5f9; border: 1px solid #e2e8f0; padding: 10px; border-radius: 8px; 
+            font-size: 12px; font-weight: 600; color: #475569; cursor: pointer; text-align: center; transition: all 0.2s; 
+        }
+        .layer-btn.active { background: #fff7ed; border-color: #f97316; color: #c2410c; }
+
+        #resultado { margin-top: 15px; padding: 18px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 12px; display: none; animation: fadeIn 0.3s ease; }
+        #resultado h3 { color: #9a3412; font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+        #resultado p { font-size: 13px; color: #431407; line-height: 1.5; }
+        
+        .badge { display: inline-block; background: #fee2e2; color: #991b1b; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 800; margin-bottom: 8px; }
+        .badge.success { background: #dcfce7; color: #166534; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
         @media (max-width: 768px) {
             body { flex-direction: column; overflow: auto; }
-            #sidebar { width: 100%; max-height: 45vh; }
-            #map { width: 100%; height: 55vh; min-height: 300px; }
+            #sidebar { width: 100%; max-height: 50vh; padding: 20px; }
+            #map { width: 100%; height: 50vh; }
         }
     </style>
 </head>
 <body>
 
     <div id="sidebar">
-        <h1>MotoGo 🛵</h1>
-        <p class="subtitle">Tu viaje seguro y rápido en mototaxi</p>
-
-        <div class="form-group">
-            <label for="destino">¿A dónde te diriges?</label>
-            <input type="text" id="destino" placeholder="Ej. Plaza Principal, Av. Universitaria...">
+        <div class="brand">
+            <h1>MotoGo</h1>
+            <span>Smart AI & Realtime</span>
         </div>
 
-        <div class="form-group">
-            <label>Tu ubicación actual (GPS)</label>
-            <input type="text" id="ubicacion" readonly value="Obteniendo coordenadas GPS...">
+        <div class="layer-selector">
+            <div class="layer-btn active" onclick="cambiarCapa('calles', this)">🗺️ Calles HD</div>
+            <div class="layer-btn" onclick="cambiarCapa('calor', this)">🔥 Mapa de Calor</div>
         </div>
 
-        <button onclick="solicitarViaje()">Pedir Mototaxi Ahora</button>
+        <div class="card-panel">
+            <div class="form-group">
+                <label for="destino">Destino del Viaje</label>
+                <input type="text" id="destino" placeholder="Ej. Hospital Hipólito Unanue, Plaza...">
+            </div>
+
+            <div class="form-group">
+                <label>Tu Posición GPS Actual</label>
+                <input type="text" id="ubicacion" readonly value="Localizando satélites GPS...">
+            </div>
+
+            <button class="btn-primary" onclick="solicitarViaje()">Solicitar Mototaxi en Vivo</button>
+        </div>
 
         <div id="resultado">
             <span id="estado-badge" class="badge">ESTADO</span>
-            <h3 id="res-titulo">Buscando unidad...</h3>
+            <h3 id="res-titulo">Procesando...</h3>
             <p id="res-detalle"></p>
         </div>
     </div>
@@ -63,27 +103,45 @@
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // Inicializar mapa centrado en Lima por defecto
-        const map = L.map('map').setView([-12.0464, -77.0428], 15);
+        // Inicializar mapa centrado en El Agustino / Lima
+        const map = L.map('map', { zoomControl: false }).setView([-12.0464, -77.0428], 15);
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-        // Capa Satelital de alta definición estilo Google Earth (Esri World Imagery)
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            maxZoom: 19,
-            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+        // Capa base principal: CartoDB Positron (Vectorial ultra nítida, limpia y profesional estilo app moderna)
+        const capaCalles = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            maxZoom: 20,
+            attribution: '&copy; <a href="https://carto.com/">CARTO</a>'
         }).addTo(map);
 
-        // Añadir una capa de etiquetas de calles por encima de la satelital para ver nombres de vías claramente
-        L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
-            maxZoom: 19,
-            opacity: 0.8
-        }).addTo(map);
+        // Capa de Mapa de Calor simulado de alta demanda en la zona
+        let heatLayer = null;
+        const puntosCalor = [
+            [-12.0464, -77.0428, 0.9], // Zona central
+            [-12.0480, -77.0400, 0.8], // Hospital Unanue
+            [-12.0430, -77.0450, 0.7], 
+            [-12.0500, -77.0380, 0.6],
+            [-12.0420, -77.0480, 0.9]
+        ];
+        heatLayer = L.heatLayer(puntosCalor, { radius: 25, blur: 15, maxZoom: 17 });
+
+        function cambiarCapa(tipo, elemento) {
+            document.querySelectorAll('.layer-btn').forEach(btn => btn.classList.remove('active'));
+            elemento.classList.add('active');
+
+            if (tipo === 'calles') {
+                if (map.hasLayer(heatLayer)) map.removeLayer(heatLayer);
+                if (!map.hasLayer(capaCalles)) capaCalles.addTo(map);
+            } else if (tipo === 'calor') {
+                if (!map.hasLayer(heatLayer)) heatLayer.addTo(map);
+            }
+        }
 
         let markerPasajero = null;
         let markerMoto = null;
         let pasajeroLat = -12.0464;
         let pasajeroLon = -77.0428;
 
-        // Obtener ubicación GPS real del pasajero
+        // Obtener ubicación GPS real del usuario
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(position => {
                 pasajeroLat = position.coords.latitude;
@@ -91,19 +149,19 @@
 
                 document.getElementById('ubicacion').value = `${pasajeroLat.toFixed(5)}, ${pasajeroLon.toFixed(5)}`;
                 
-                map.setView([pasajeroLat, pasajeroLon], 17); // Zoom más cercano estilo satelital detallado
+                map.setView([pasajeroLat, pasajeroLon], 16);
                 markerPasajero = L.marker([pasajeroLat, pasajeroLon]).addTo(map)
-                    .bindPopup("<b>¡Tú estás aquí!</b>")
+                    .bindPopup("<b>📍 Tu ubicación actual</b>")
                     .openPopup();
             }, error => {
-                document.getElementById('ubicacion').value = "Coordenadas por defecto (Lima Centro)";
+                document.getElementById('ubicacion').value = "-12.04640, -77.04280 (Por defecto)";
             });
         }
 
         async function solicitarViaje() {
             const destino = document.getElementById('destino').value;
             if (!destino) {
-                alert("Por favor ingresa tu destino.");
+                alert("Por favor ingresa un destino válido.");
                 return;
             }
 
@@ -114,9 +172,9 @@
 
             resDiv.style.display = "block";
             badge.className = "badge";
-            badge.innerText = "BUSCANDO";
-            titulo.innerText = "Localizando unidad cercana...";
-            detalle.innerText = "Calculando la ruta óptima por proximidad...";
+            badge.innerText = "BUSCANDO EN TIEMPO REAL";
+            titulo.innerText = "Analizando proximidad (Haversine)...";
+            detalle.innerText = "Consultando base de datos nacional en la nube...";
 
             try {
                 const response = await fetch(`/api/solicitar-viaje?lat=${pasajeroLat}&lon=${pasajeroLon}&destino=${encodeURIComponent(destino)}`, {
@@ -127,12 +185,12 @@
 
                 if (response.ok && data.exito) {
                     badge.className = "badge success";
-                    badge.innerText = "CONDUCTOR ASIGNADO";
+                    badge.innerText = "UNIDAD ASIGNADA";
                     titulo.innerText = `¡Mototaxi en camino: ${data.conductor_asignado}!`;
                     detalle.innerHTML = `<strong>Placa:</strong> ${data.placa} <br><strong>Distancia:</strong> ${data.distancia_km} km <br><strong>Destino:</strong> ${data.destino}`;
 
-                    // Simular la moto acercándose desde un punto cercano en el mapa satelital
-                    simularMovimientoMoto(pasajeroLat + 0.003, pasajeroLon + 0.003, pasajeroLat, pasajeroLon);
+                    // Simulación fluida de la moto acercándose en tiempo real
+                    simularMovimientoMoto(pasajeroLat + 0.0025, pasajeroLon + 0.0025, pasajeroLat, pasajeroLon);
 
                 } else {
                     badge.className = "badge";
@@ -142,49 +200,41 @@
                 }
             } catch (err) {
                 badge.className = "badge";
-                badge.innerText = "ERROR";
-                titulo.innerText = "Error de conexión";
-                detalle.innerText = "No se pudo comunicar con el servidor en la nube.";
+                badge.innerText = "ERROR DE RED";
+                titulo.innerText = "Fallo de conexión";
+                detalle.innerText = "No se pudo conectar con el servidor en Render.";
             }
         }
 
-        // Función para animar el acercamiento de la moto en tiempo real en el mapa
         function simularMovimientoMoto(latIni, lonIni, latFin, lonFin) {
-            if (markerMoto) {
-                map.removeLayer(markerMoto);
-            }
+            if (markerMoto) map.removeLayer(markerMoto);
 
-            // Icono personalizado para la mototaxi
             const motoIcon = L.divIcon({
                 html: '🛵',
                 className: 'custom-moto-icon',
-                iconSize: [30, 30]
+                iconSize: [32, 32]
             });
 
             let currentLat = latIni;
             let currentLon = lonIni;
             markerMoto = L.marker([currentLat, currentLon], { icon: motoIcon }).addTo(map)
-                .bindPopup("<b>Mototaxi en camino</b>").openPopup();
+                .bindPopup("<b>🛵 Mototaxi acercándose</b>").openPopup();
 
-            let pasos = 50;
             let step = 0;
+            const totalPasos = 40;
 
             let intervalo = setInterval(() => {
                 step++;
-                currentLat += (latFin - currentLat) / (pasazos = 50 - step + 1);
-                currentLon += (lonFin - currentLon) / (pasazos = 50 - step + 1);
+                currentLat += (latFin - currentLat) / (totalPasos - step + 1);
+                currentLon += (lonFin - currentLon) / (totalPasos - step + 1);
                 
-                if (markerMoto) {
-                    markerMoto.setLatLng([currentLat, currentLon]);
-                }
+                if (markerMoto) markerMoto.setLatLng([currentLat, currentLon]);
 
-                if (step >= 50) {
+                if (step >= totalPasos) {
                     clearInterval(intervalo);
-                    if (markerMoto) {
-                        markerMoto.bindPopup("<b>¡Tu mototaxi ha llegado!</b>").openPopup();
-                    }
+                    if (markerMoto) markerMoto.bindPopup("<b>✅ ¡Tu mototaxi ha llegado al punto!</b>").openPopup();
                 }
-            }, 200);
+            }, 150);
         }
     </script>
 </body>
