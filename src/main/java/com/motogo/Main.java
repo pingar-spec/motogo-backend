@@ -31,7 +31,7 @@ public class Main {
         });
 
         // 1. Endpoint para que el pasajero solicite viaje (Despacho por Proximidad)
-        app.get("/api/solicitar-viaje", ctx -> {
+        app.post("/api/solicitar-viaje", ctx -> {
             Double latPasajero = ctx.queryParamAsClass("lat", Double.class).get();
             Double lonPasajero = ctx.queryParamAsClass("lon", Double.class).get();
             String destino = ctx.queryParam("destino");
