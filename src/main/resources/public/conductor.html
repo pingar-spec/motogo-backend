@@ -132,10 +132,12 @@
         let nombreConductor = "";
         let placaConductor = "";
         let viajeActivoId = null;
-        let controlRutaConductor = null;
         let intervaloEscucha = null;
         let latActualConductor = -12.0464;
         let lonActualConductor = -77.0428;
+
+        // Enlace oficial de tu backend en Render
+        const BACKEND_URL = "https://motogo-backend-kx9f.onrender.com";
 
         window.onload = function() {
             const guardadoPlaca = localStorage.getItem('motogo_placa');
@@ -192,7 +194,6 @@
 
                     }, error => { alert("Error GPS: " + error.message); toggleConexion(); }, { enableHighAccuracy: true });
 
-                    // Iniciar sondeo en tiempo real para buscar carreras asignadas
                     iniciarEscuchaCarreras();
                 }
             } else {
@@ -210,15 +211,22 @@
             formData.append('placa', placaConductor);
             formData.append('lat', lat);
             formData.append('lon', lon);
-            fetch('/api/registrar-conductor', { method: 'POST', body: formData }).catch(err => console.error(err));
+
+            fetch(`${BACKEND_URL}/api/registrar-conductor`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => console.log("GPS sincronizado con Render:", data))
+            .catch(err => console.error("Error al sincronizar con la nube:", err));
         }
 
-        // Escuchar si el servidor le asignó un pasajero (alerta de 15 segundos)
         function iniciarEscuchaCarreras() {
             intervaloEscucha = setInterval(() => {
                 if (!conectado || viajeActivoId) return;
 
-                fetch(`/api/verificar-viaje-conductor?placa=${encodeURIComponent(placaConductor)}`)
+                fetch(`${BACKEND_URL}/api/verificar-viaje-conductor?placa=${encodeURIComponent(placaConductor)}`)
                     .then(res => res.json())
                     .then(data => {
                         if (data.tiene_viaje) {
@@ -235,11 +243,9 @@
             textoDiv.innerHTML = `<strong>Destino:</strong> ${data.destino}<br><em>Tienes 15 segundos para aceptar.</em>`;
             alertaDiv.style.display = 'flex';
 
-            // Dibujar pin del pasajero en el mapa
             const pasIcon = L.divIcon({ html: '👤', className: 'custom-pasajero-marker', iconSize: [26, 26] });
             L.marker([data.lat, data.lon], { icon: pasIcon }).addTo(map).bindPopup("<b>Pasajero esperando</b>").openPopup();
 
-            // Temporizador automático de 15 segundos para rechazar si no responde
             setTimeout(() => {
                 if (viajeActivoId === data.viaje_id && alertaDiv.style.display === 'flex') {
                     responderCarrera('RECHAZADO');
@@ -254,18 +260,21 @@
             formData.append('viaje_id', viajeActivoId);
             formData.append('respuesta', respuesta);
 
-            fetch('/api/responder-viaje', { method: 'POST', body: formData })
-                .then(res => res.json())
-                .then(data => {
-                    document.getElementById('alerta-viaje').style.display = 'none';
-                    if (respuesta === 'ACEPTADO') {
-                        alert("¡Carrera aceptada! Generando ruta de navegación estilo Waze...");
-                        // Aquí activaríamos el ruteo de navegación OSRM hacia el pasajero
-                    } else {
-                        alert("Has rechazado la solicitud.");
-                        viajeActivoId = null;
-                    }
-                }).catch(err => console.error(err));
+            fetch(`${BACKEND_URL}/api/responder-viaje`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('alerta-viaje').style.display = 'none';
+                if (respuesta === 'ACEPTADO') {
+                    alert("¡Carrera aceptada! Ruta en vivo activada.");
+                } else {
+                    alert("Has rechazado la solicitud.");
+                    viajeActivoId = null;
+                }
+            }).catch(err => console.error(err));
         }
     </script>
 </body>
