@@ -97,7 +97,6 @@ public class Main {
             }
         });
 
-        // Endpoint de zonas de calor blindado contra errores de compilación y caracteres especiales
         app.get("/api/zonas-calor", ctx -> {
             String urlDb = "jdbc:mysql://" + HOST + ":" + PORT_DB + "/motogo_db?sslMode=VERIFY_IDENTITY";
             StringBuilder json = new StringBuilder("[");
@@ -190,6 +189,7 @@ public class Main {
         Map<String, Object> mejorConductor = null;
         double menorDistancia = Double.MAX_VALUE;
 
+        // Búsqueda abierta a nivel nacional para cualquier conductor disponible
         String query = "SELECT nombre, placa, latitud, longitud FROM conductores WHERE disponible = TRUE";
 
         try (Connection conn = DriverManager.getConnection(urlDb, USER, PASSWORD);
