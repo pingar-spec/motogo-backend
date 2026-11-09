@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MotoGo - Panel Conductor en Tiempo Real</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, sans-serif; }
+        body, html { width: 100%; height: 100%; overflow: hidden; background-color: #f1f5f9; }
+
+        #map { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
+
+        .driver-panel {
+            position: absolute; top: 20px; left: 20px; right: 20px;
+            max-width: 480px; margin: 0 auto; background: #ffffff;
+            border-radius: 20px; padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+            z-index: 1000; display: flex; flex-direction: column; gap: 12px;
+        }
+        .card-header { display: flex; justify-content: space-between; align-items: center; }
+        .app-title { font-size: 18px; font-weight: 800; color: #1e40af; }
+        .service-type {
+            font-size: 11px; background: #eff6ff; color: #1d4ed8;
+            padding: 4px 8px; border-radius: 6px; font-weight: 700; text-transform: uppercase;
+        }
+        
+        .stats-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: #f8fafc;
+            padding: 10px; border-radius: 12px; border: 1px solid #e2e8f0;
+        }
+        .stat-item { text-align: center; }
+        .stat-value { font-size: 15px; font-weight: 700; color: #0f172a; }
+        .stat-label { font-size: 11px; color: #64748b; font-weight: 500; }
+
+        .input-row { display: flex; gap: 10px; }
+        .input-group { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+        .input-group label { font-size: 11px; font-weight: 600; color: #64748b; }
+        .input-field {
+            padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px;
+            font-size: 13px; outline: none; color: #0f172a;
+        }
+
+        .btn-conectar {
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            color: white; border: none; padding: 14px; border-radius: 12px;
+            font-size: 15px; font-weight: 700; cursor: pointer;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4); text-align: center;
+        }
+        .btn-conectar.activo { background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); box-shadow: 0 4px 12px rgba(22, 163, 74, 0.4); }
+
+        .heatmap-legend {
+            background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px;
+            padding: 10px; font-size: 12px; color: #92400e; display: flex; align-items: center; gap: 8px;
+        }
+        .pulse-dot { width: 10px; height: 10px; background-color: #f59e0b; border-radius: 50%; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { transform: scale(0.95); opacity: 0.8; } 50% { transform: scale(1.3); opacity: 1; } 100% { transform: scale(0.95); opacity: 0.8; } }
+
+        .custom-moto-marker { font-size: 28px; text-align: center; }
+    </style>
+</head>
+<body>
+
+    <div id="map"></div>
+
+    <div class="driver-panel">
+        <div class="card-header">
+            <div class="app-title">MotoGo Conductor 🛵</div>
+            <div class="service-type">Radar en Vivo</div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-item">
+                <div class="stat-value" id="estado-radar">Buscando...</div>
+                <div class="stat-label">Zonas Activas Reales</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" style="color: #16a34a;">En Línea</div>
+                <div class="stat-label">Estado GPS</div>
+            </div>
+        </div>
+
+        <div class="heatmap-legend">
+            <div class="pulse-dot"></div>
+            <div><strong>Mapa de Calor Real:</strong> Los círculos rojos muestran dónde los pasajeros han solicitado viajes en tiempo real.</div>
+        </div>
+
+        <div class="input-row">
+            <div class="input-group">
+                <label>Conductor</label>
+                <input type="text" id="nombre-input" class="input-field" value="Juan Pérez">
+            </div>
+            <div class="input-group">
+                <label>Placa</label>
+                <input type="text" id="placa-input" class="input-field" value="MOT-9999">
+            </div>
+        </div>
+
+        <button id="btn-toggle" class="btn-conectar" onclick="toggleConexion()">Conectar y Activar Radar</button>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        const map = L.map('map', { zoomControl: false }).setView([-12.0464, -77.0428], 14);
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        let markerConductor = null;
+        let watchId = null;
+        let conectado = false;
+        let capasCalor = [];
+
+        function cargarMapaDeCalorReal() {
+            fetch('/api/zonas-calor')
+                .then(res => res.json())
+                .then(puntos => {
+                    capasCalor.forEach(capa => map.removeLayer(capa));
+                    capasCalor = [];
+                    document.getElementById('estado-radar').innerText = `${puntos.length} zonas activas`;
+                    puntos.forEach(p => {
+                        const circle = L.circle([p.lat, p.lon], {
+                            color: '#ef4444',
+                            fillColor: '#f87171',
+                            fillOpacity: 0.4,
+                            radius: 400
+                        }).addTo(map).bindPopup("<b>🔥 Solicitud Real de Pasajero</b>");
+                        capasCalor.push(circle);
+                    });
+                })
+                .catch(err => console.error("Error al cargar zonas de calor:", err));
+        }
+
+        cargarMapaDeCalorReal();
+        setInterval(cargarMapaDeCalorReal, 15000);
+
+        function toggleConexion() {
+            const btn = document.getElementById('btn-toggle');
+            const nombre = document.getElementById('nombre-input').value;
+            const placa = document.getElementById('placa-input').value;
+
+            if (!nombre || !placa) { alert("Ingresa tu nombre y placa."); return; }
+
+            if (!conectado) {
+                if (navigator.geolocation) {
+                    conectado = true;
+                    btn.innerText = "Desconectarse (Pausar Radar)";
+                    btn.classList.add('activo');
+
+                    watchId = navigator.geolocation.watchPosition(position => {
+                        const lat = position.coords.latitude;
+                        const lon = position.coords.longitude;
+
+                        const motoIcon = L.divIcon({ html: '🛵', className: 'custom-moto-marker', iconSize: [32, 32] });
+                        if (!markerConductor) {
+                            markerConductor = L.marker([lat, lon], { icon: motoIcon }).addTo(map)
+                                .bindPopup("<b>Tu Mototaxi (Transmitiendo GPS real)</b>").openPopup();
+                            map.setView([lat, lon], 16);
+                        } else {
+                            markerConductor.setLatLng([lat, lon]);
+                        }
+
+                        enviarPosicionAlServidor(nombre, placa, lat, lon);
+
+                    }, error => {
+                        alert("Error de GPS: " + error.message);
+                        toggleConexion();
+                    }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 });
+                } else {
+                    alert("Geolocalización no soportada.");
+                }
+            } else {
+                if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+                conectado = false;
+                btn.innerText = "Conectar y Activar Radar";
+                btn.classList.remove('activo');
+            }
+        }
+
+        function enviarPosicionAlServidor(nombre, placa, lat, lon) {
+            const formData = new URLSearchParams();
+            formData.append('nombre', nombre);
+            formData.append('placa', placa);
+            formData.append('lat', lat);
+            formData.append('lon', lon);
+
+            fetch('/api/registrar-conductor', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: formData
+            }).catch(err => console.error("Error al sincronizar con la nube:", err));
+        }
+    </script>
+</body>
+</html>

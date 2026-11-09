@@ -1,7 +1,11 @@
 package com.motogo;
 
 import io.javalin.Javalin;
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Statement;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -10,25 +14,21 @@ public class Main {
     private static final String HOST = "gateway01.sa-east-1.prod.aws.tidbcloud.com";
     private static final String PORT_DB = "4000";
     private static final String USER = "VqAp2wi3ep6JvL1.root";
-    private static final String PASSWORD = "TU_CONTRASEÑA_AQUÍ"; // Reemplaza con tu contraseña real
+    private static final String PASSWORD = "TU_CONTRASEÑA_AQUÍ";
 
     public static void main(String[] args) {
-        // 1. Inicializar la base de datos y tablas automáticamente en la nube
         inicializarBaseDeDatosNacional();
 
-        // 2. Obtener el puerto dinámico asignado por Render (o usar 8080 por defecto local)
         int puertoApp = 8080;
         String portEnv = System.getenv("PORT");
         if (portEnv != null && !portEnv.isEmpty()) {
             puertoApp = Integer.parseInt(portEnv);
         }
 
-        // 3. Configurar Javalin sirviendo la carpeta estática /public y arrancando en el puerto correcto
-        var app = Javalin.create(config -> {
+        Javalin app = Javalin.create(config -> {
             config.staticFiles.add("/public", io.javalin.http.staticfiles.Location.CLASSPATH);
         }).start(puertoApp);
 
-        // Habilitar CORS de manera universal y segura
         app.before(ctx -> {
             ctx.header("Access-Control-Allow-Origin", "*");
             ctx.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
@@ -37,7 +37,6 @@ public class Main {
 
         System.out.println("¡Servidor MotoGo Backend Nacional Activo en el puerto " + puertoApp + "!");
 
-        // 4. Endpoint principal para solicitar viaje con Haversine a nivel nacional
         app.post("/api/solicitar-viaje", ctx -> {
             String latStr = ctx.queryParam("lat");
             String lonStr = ctx.queryParam("lon");
@@ -50,6 +49,8 @@ public class Main {
 
             double pasajeroLat = Double.parseDouble(latStr);
             double pasajeroLon = Double.parseDouble(lonStr);
+
+            registrarSolicitudDemanda(pasajeroLat, pasajeroLon, destino);
 
             Map<String, Object> conductorAsignado = buscarConductorMasCercano(pasajeroLat, pasajeroLon);
 
@@ -66,7 +67,6 @@ public class Main {
             }
         });
 
-        // 5. Endpoint para el registro y conexión en tiempo real de conductores reales
         app.post("/api/registrar-conductor", ctx -> {
             String nombre = ctx.formParam("nombre");
             String placa = ctx.formParam("placa");
@@ -96,6 +96,34 @@ public class Main {
                 ctx.status(500).json(Map.of("exito", false, "error", e.getMessage()));
             }
         });
+
+        // Endpoint de zonas de calor blindado contra errores de compilación y caracteres especiales
+        app.get("/api/zonas-calor", ctx -> {
+            String urlDb = "jdbc:mysql://" + HOST + ":" + PORT_DB + "/motogo_db?sslMode=VERIFY_IDENTITY";
+            StringBuilder json = new StringBuilder("[");
+            String query = "SELECT latitud, longitud FROM solicitudes ORDER BY fecha DESC LIMIT 50";
+
+            try (Connection conn = DriverManager.getConnection(urlDb, USER, PASSWORD);
+                 Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery(query)) {
+
+                boolean primero = true;
+                while (rs.next()) {
+                    if (!primero) {
+                        json.append(",");
+                    }
+                    json.append("{\"lat\":").append(rs.getDouble("latitud"))
+                        .append(",\"lon\":").append(rs.getDouble("longitud")).append("}");
+                    primero = false;
+                }
+            } catch (Exception e) {
+                System.err.println("Error al obtener zonas de calor: " + e.getMessage());
+            }
+            json.append("]");
+
+            ctx.contentType("application/json");
+            ctx.result(json.toString());
+        });
     }
 
     private static void inicializarBaseDeDatosNacional() {
@@ -123,6 +151,13 @@ public class Main {
                     "disponible BOOLEAN DEFAULT TRUE, " +
                     "FOREIGN KEY (ciudad_id) REFERENCES ciudades(id));");
 
+            stmt.executeUpdate("CREATE TABLE IF NOT EXISTS solicitudes (" +
+                    "id INT AUTO_INCREMENT PRIMARY KEY, " +
+                    "latitud DECIMAL(10, 8) NOT NULL, " +
+                    "longitud DECIMAL(11, 8) NOT NULL, " +
+                    "destino VARCHAR(255), " +
+                    "fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP);");
+
             stmt.executeUpdate("INSERT IGNORE INTO ciudades (id, nombre, departamento) VALUES " +
                     "(1, 'Huaral', 'Lima'), " +
                     "(2, 'Lima Centro', 'Lima'), " +
@@ -133,6 +168,20 @@ public class Main {
 
         } catch (Exception e) {
             System.err.println("Error al conectar o inicializar TiDB Cloud: " + e.getMessage());
+        }
+    }
+
+    private static void registrarSolicitudDemanda(double lat, double lon, String destino) {
+        String urlDb = "jdbc:mysql://" + HOST + ":" + PORT_DB + "/motogo_db?sslMode=VERIFY_IDENTITY";
+        String query = "INSERT INTO solicitudes (latitud, longitud, destino) VALUES (?, ?, ?)";
+        try (Connection conn = DriverManager.getConnection(urlDb, USER, PASSWORD);
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+            pstmt.setDouble(1, lat);
+            pstmt.setDouble(2, lon);
+            pstmt.setString(3, destino);
+            pstmt.executeUpdate();
+        } catch (Exception e) {
+            System.err.println("Error al registrar solicitud para mapa de calor: " + e.getMessage());
         }
     }
 
