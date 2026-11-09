@@ -13,6 +13,9 @@
 
         #map { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
 
+        /* Ocultar totalmente la caja de texto flotante de instrucciones de ruta de Leaflet */
+        .leaflet-routing-container { display: none !important; }
+
         .passenger-panel {
             position: absolute; bottom: 20px; left: 20px; right: 20px;
             max-width: 480px; margin: 0 auto; background: rgba(255, 255, 255, 0.96);
@@ -38,7 +41,6 @@
             font-size: 13px; outline: none; color: #0f172a; width: 100%;
         }
 
-        /* Lista desplegable para resultados detallados */
         #resultados-busqueda {
             position: absolute; top: 100%; left: 0; right: 0; background: white;
             border: 1px solid #cbd5e1; border-radius: 8px; max-height: 180px;
@@ -100,7 +102,6 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
     <script>
-        // Inicializar mapa centrado en Lima / El Agustino por defecto
         const map = L.map('map', { zoomControl: false }).setView([-12.0498, -77.0019], 15);
         L.control.zoom({ position: 'bottomright' }).addTo(map);
 
@@ -114,7 +115,6 @@
         let destinoLat = -12.0464;
         let destinoLon = -77.0428;
 
-        // Marcador del Pasajero (Recogida)
         let marcadorPasajero = L.marker([latPasajero, lonPasajero], { draggable: true }).addTo(map)
             .bindPopup("<b>Tu ubicación de recogida</b>").openPopup();
 
@@ -124,7 +124,6 @@
             lonPasajero = pos.lng;
         });
 
-        // Marcador de Destino
         let marcadorDestino = L.marker([destinoLat, destinoLon], { draggable: true, icon: L.icon({
             iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
             shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
@@ -138,14 +137,12 @@
             actualizarRutaVisual();
         });
 
-        // Evento al hacer clic en el mapa para mover la recogida
         map.on('click', function(e) {
             latPasajero = e.latlng.lat;
             lonPasajero = e.latlng.lng;
             marcadorPasajero.setLatLng([latPasajero, lonPasajero]);
         });
 
-        // Obtener ubicación GPS real automática al cargar la página
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
                 function(position) {
@@ -153,7 +150,6 @@
                     lonPasajero = position.coords.longitude;
                     marcadorPasajero.setLatLng([latPasajero, lonPasajero]);
                     map.setView([latPasajero, lonPasajero], 16);
-                    marcadorPasajero.bindPopup("<b>¡Tu ubicación GPS!</b>").openPopup();
                     document.getElementById('estado-texto').innerText = "GPS Listo";
                 },
                 function(error) {
@@ -176,10 +172,9 @@
                         L.latLng(destinoLat, destinoLon)
                     ],
                     routeWhileDragging: false,
-                    language: 'es',
-                    show: true,
                     addWaypoints: false,
-                    fitSelectedRoutes: true
+                    fitSelectedRoutes: true,
+                    createMarker: function() { return null; } // No duplicar marcadores
                 }).addTo(map);
             } catch (e) {
                 console.error("Error al trazar ruta:", e);
@@ -188,7 +183,6 @@
 
         let timeoutBusqueda = null;
 
-        // Buscador interactivo en tiempo real con lista desplegable
         function buscarSugerencias(query) {
             clearTimeout(timeoutBusqueda);
             const contenedor = document.getElementById('resultados-busqueda');
@@ -242,7 +236,6 @@
             const btn = document.getElementById('btn-solicitar');
             const destinoTexto = document.getElementById('destino-input').value.trim();
             
-            // Forzar lectura de la posición actual exacta del marcador de recogida
             if (marcadorPasajero) {
                 const posActual = marcadorPasajero.getLatLng();
                 latPasajero = posActual.lat;
@@ -258,12 +251,9 @@
             btn.disabled = true;
             document.getElementById('estado-texto').innerText = "Procesando...";
 
-            // Enviar coordenadas y destino por parámetros de URL (Query Parameters)
             const urlFinal = `${BACKEND_URL}/api/solicitar-viaje?lat=${latPasajero}&lon=${lonPasajero}&destino=${encodeURIComponent(destinoTexto ? destinoTexto : "Destino general")}`;
 
-            fetch(urlFinal, {
-                method: 'POST'
-            })
+            fetch(urlFinal, { method: 'POST' })
             .then(res => res.json())
             .then(data => {
                 if (data.exito) {
@@ -272,11 +262,11 @@
                         <strong>Conductor Asignado:</strong> ${data.conductor_asignado}<br>
                         <strong>Placa Oficial:</strong> ${data.placa}<br>
                         <strong>Destino:</strong> ${data.destino}<br>
-                        <em>¡Tu mototaxi está en camino en tiempo real!</em>
+                        <em>¡Tu mototaxi está en camino en tiempo real!</em><br><br>
+                        <button onclick="reiniciarBusqueda()" style="background:#dc2626; color:white; border:none; padding:8px 14px; border-radius:8px; cursor:pointer; font-size:12px; font-weight:700; width:100%;">Cancelar / Buscar otro</button>
                     `;
                     btn.innerText = "Viaje en Curso";
                     
-                    // Iniciar el rastreo en vivo de la moto en el mapa del pasajero
                     iniciarRastreoEnVivo(data.placa);
                 } else {
                     alert(data.mensaje);
@@ -315,6 +305,26 @@
                     })
                     .catch(err => console.error("Error rastreando posición:", err));
             }, 3000);
+        }
+
+        function reiniciarBusqueda() {
+            if (intervaloRastreoConductor) clearInterval(intervaloRastreoConductor);
+            if (marcadorMototaxiEnRuta) {
+                map.removeLayer(marcadorMototaxiEnRuta);
+                marcadorMototaxiEnRuta = null;
+            }
+            if (routingControl) {
+                map.removeControl(routingControl);
+                routingControl = null;
+            }
+            
+            document.getElementById('estado-texto').innerText = "Seleccionando";
+            document.getElementById('unidades-cerca').innerText = "Radar Activo";
+            document.getElementById('info-viaje').innerHTML = "Arrastra el marcador azul en el mapa, escribe tu destino o haz clic en cualquier lugar.";
+            
+            const btn = document.getElementById('btn-solicitar');
+            btn.innerText = "Solicitar Mototaxi en Vivo";
+            btn.disabled = false;
         }
     </script>
 </body>

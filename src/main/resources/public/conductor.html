@@ -2,232 +2,247 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MotoGo - Panel Conductor</title>
+    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, sans-serif; }
         body, html { width: 100%; height: 100%; overflow: hidden; background-color: #f1f5f9; }
+
         #map { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
+
+        /* Ocultar la caja de texto flotante pesada para que no tape la pantalla del celular */
+        .leaflet-routing-container { display: none !important; }
+
         .driver-panel {
-            position: absolute; top: 20px; left: 20px; right: 20px;
+            position: absolute; bottom: 20px; left: 20px; right: 20px;
             max-width: 480px; margin: 0 auto; background: rgba(255, 255, 255, 0.96);
-            backdrop-filter: blur(12px); border-radius: 20px; padding: 20px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.25); z-index: 1000; display: flex; flex-direction: column; gap: 12px;
+            backdrop-filter: blur(12px);
+            border-radius: 20px; padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+            z-index: 1000; display: flex; flex-direction: column; gap: 12px;
         }
         .card-header { display: flex; justify-content: space-between; align-items: center; }
         .app-title { font-size: 18px; font-weight: 800; color: #1e40af; }
-        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: #f8fafc; padding: 10px; border-radius: 12px; border: 1px solid #e2e8f0; }
+        
+        .stats-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: #f8fafc;
+            padding: 10px; border-radius: 12px; border: 1px solid #e2e8f0;
+        }
         .stat-item { text-align: center; }
         .stat-value { font-size: 15px; font-weight: 700; color: #0f172a; }
         .stat-label { font-size: 11px; color: #64748b; font-weight: 500; }
-        .input-group { display: flex; flex-direction: column; gap: 4px; }
-        .input-group label { font-size: 11px; font-weight: 600; color: #64748b; }
-        .input-field { padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; outline: none; color: #0f172a; }
-        .btn-conectar { background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: white; border: none; padding: 14px; border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer; text-align: center; }
-        .btn-conectar.activo { background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); }
-        #alerta-viaje { display: none; background: #fff7ed; border: 2px solid #f97316; border-radius: 14px; padding: 16px; flex-direction: column; gap: 10px; }
-        .alerta-titulo { font-size: 16px; font-weight: 800; color: #c2410c; }
-        .alerta-detalles { font-size: 13px; color: #7c2d12; line-height: 1.4; }
-        .btn-acciones-viaje { display: flex; gap: 10px; }
-        .btn-aceptar { background: #16a34a; color: white; border: none; padding: 10px; border-radius: 8px; font-weight: 700; flex: 1; cursor: pointer; }
-        .btn-rechazar { background: #dc2626; color: white; border: none; padding: 10px; border-radius: 8px; font-weight: 700; flex: 1; cursor: pointer; }
+
+        .btn-action {
+            background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+            color: white; border: none; padding: 14px; border-radius: 12px;
+            font-size: 15px; font-weight: 700; cursor: pointer;
+            box-shadow: 0 4px 12px rgba(22, 163, 74, 0.4); text-align: center;
+        }
+        .btn-danger {
+            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
+        }
+
         .custom-moto-marker { font-size: 28px; text-align: center; }
-        .custom-pasajero-marker { background: #ef4444; color: white; border-radius: 50%; text-align: center; font-size: 12px; line-height: 26px; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3); }
     </style>
 </head>
 <body>
+
     <div id="map"></div>
 
-    <div class="driver-panel" id="panel-registro">
+    <!-- PANEL DE CONTROL DEL CONDUCTOR -->
+    <div class="driver-panel">
         <div class="card-header">
             <div class="app-title">MotoGo Conductor 🛵</div>
+            <a href="pasajero.html" style="font-size:12px; color:#3b82f6; text-decoration:none;">Ir a Pasajero</a>
         </div>
-        <div class="input-group">
-            <label>Nombre y Apellido Real</label>
-            <input type="text" id="nombre-input" class="input-field" placeholder="Ej. Carlos Mendoza">
-        </div>
-        <div class="input-group">
-            <label>Placa Oficial del Vehículo</label>
-            <input type="text" id="placa-input" class="input-field" placeholder="Ej. B5Y-957">
-        </div>
-        <button class="btn-conectar" onclick="guardarRegistroConductor()">Guardar y Continuar</button>
-    </div>
-
-    <div class="driver-panel" id="panel-radar" style="display: none;">
-        <div class="card-header">
-            <div class="app-title" id="driver-title">MotoGo Conductor 🛵</div>
-            <button onclick="cerrarSesionConductor()" style="background:none; border:none; color:#ef4444; font-size:12px; cursor:pointer; font-weight:600;">Cambiar Datos</button>
-        </div>
+        
         <div class="stats-grid">
-            <div class="stat-item"><div class="stat-value" id="estado-radar">En Espera</div><div class="stat-label">Radar</div></div>
-            <div class="stat-item"><div class="stat-value" style="color: #16a34a;">Conectado</div><div class="stat-label">GPS en Vivo</div></div>
-        </div>
-        <div id="alerta-viaje">
-            <div class="alerta-titulo">🚨 ¡NUEVA SOLICITUD DE VIAJE!</div>
-            <div class="alerta-detalles" id="alerta-texto">Cargando detalles...</div>
-            <div class="btn-acciones-viaje">
-                <button class="btn-aceptar" onclick="responderCarrera('ACEPTADO')">Aceptar (15s)</button>
-                <button class="btn-rechazar" onclick="responderCarrera('RECHAZADO')">Rechazar</button>
+            <div class="stat-item">
+                <div class="stat-value" id="estado-radar">En Espera</div>
+                <div class="stat-label">Radar</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" style="color: #64748b;" id="estado-conexion">Desconectado</div>
+                <div class="stat-label">GPS en Vivo</div>
             </div>
         </div>
-        <button id="btn-toggle" class="btn-conectar" onclick="toggleConexion()">Conectar y Activar Radar</button>
+
+        <div id="info-conductor" style="font-size: 13px; color: #334155; line-height: 1.4;">
+            <strong>Conductor:</strong> Piero<br>
+            <strong>Placa:</strong> B5Y-957<br>
+            <em>Activa el radar para recibir solicitudes de pasajeros cercanos.</em>
+        </div>
+
+        <button class="btn-action" id="btn-radar" onclick="toggleRadar()">Conectar y Activar Radar</button>
     </div>
 
+    <!-- Leaflet JS y Routing Machine -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
     <script>
-        const map = L.map('map', { zoomControl: false }).setView([-12.0464, -77.0428], 14);
+        const map = L.map('map', { zoomControl: false }).setView([-12.0498, -77.0019], 15);
         L.control.zoom({ position: 'bottomright' }).addTo(map);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
-        let markerConductor = null;
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
         let watchId = null;
-        let conectado = false;
-        let nombreConductor = "";
-        let placaConductor = "";
-        let viajeActivoId = null;
-        let intervaloEscucha = null;
-        let cuentaRegresivaInterval = null;
+        let radarActivo = false;
+        let marcadorConductor = null;
+        let marcadorRecogidaPasajero = null;
+        let marcadorDestinoFinal = null;
+        let routingRuta1 = null; // Ruta Hacia Pasajero (Color Azul)
+        let routingRuta2 = null; // Ruta Hacia Destino (Color Verde)
+        let intervaloVerificarViaje = null;
+
         const BACKEND_URL = "https://motogo-backend-kx9f.onrender.com";
+        const placaConductor = "B5Y-957";
+        const nombreConductor = "Piero";
 
-        window.onload = function() {
-            const guardadoPlaca = localStorage.getItem('motogo_placa');
-            const guardadoNombre = localStorage.getItem('motogo_nombre');
-            if (guardadoPlaca && guardadoNombre) {
-                nombreConductor = guardadoNombre;
-                placaConductor = guardadoPlaca;
-                document.getElementById('panel-registro').style.display = 'none';
-                document.getElementById('panel-radar').style.display = 'flex';
-                document.getElementById('driver-title').innerText = `${nombreConductor} (${placaConductor})`;
-            }
-        };
+        let latActual = -12.0498;
+        let lonActual = -77.0019;
 
-        function guardarRegistroConductor() {
-            const nombre = document.getElementById('nombre-input').value.trim();
-            const placa = document.getElementById('placa-input').value.trim();
-            if (!nombre || placa.length < 4) { alert("Ingresa datos válidos."); return; }
-            localStorage.setItem('motogo_nombre', nombre);
-            localStorage.setItem('motogo_placa', placa);
-            location.reload();
-        }
-
-        function cerrarSesionConductor() {
-            if (confirm("¿Cambiar datos?")) {
-                localStorage.clear();
-                location.reload();
-            }
-        }
-
-        function toggleConexion() {
-            const btn = document.getElementById('btn-toggle');
-            if (!conectado) {
+        function toggleRadar() {
+            const btn = document.getElementById('btn-radar');
+            if (!radarActivo) {
                 if (navigator.geolocation) {
-                    conectado = true;
-                    btn.innerText = "Desconectarse (Pausar)";
-                    btn.classList.add('activo');
-
                     watchId = navigator.geolocation.watchPosition(pos => {
-                        const lat = pos.coords.latitude;
-                        const lon = pos.coords.longitude;
+                        latActual = pos.coords.latitude;
+                        lonActual = pos.coords.longitude;
+                        const precision = pos.coords.accuracy;
+
+                        if (precision > 50) return; // Filtrar saltos de GPS muy bruscos
+
                         const motoIcon = L.divIcon({ html: '🛵', className: 'custom-moto-marker', iconSize: [32, 32] });
                         
-                        if (!markerConductor) {
-                            markerConductor = L.marker([lat, lon], { icon: motoIcon }).addTo(map).bindPopup("<b>Tu Ubicación GPS</b>").openPopup();
-                            map.setView([lat, lon], 16);
+                        if (!marcadorConductor) {
+                            marcadorConductor = L.marker([latActual, lonActual], { icon: motoIcon }).addTo(map)
+                                .bindPopup("<b>Tu Ubicación GPS</b>").openPopup();
+                            map.setView([latActual, lonActual], 16);
                         } else {
-                            markerConductor.setLatLng([lat, lon]);
+                            marcadorConductor.setLatLng([latActual, lonActual]);
                         }
-                        enviarPosicionAlServidor(lat, lon);
-                    }, err => alert("GPS Error: " + err.message), { enableHighAccuracy: true });
 
-                    iniciarEscuchaCarreras();
+                        enviarPosicionAlServidor(latActual, lonActual);
+                    }, err => console.warn("GPS Error: " + err.message), { 
+                        enableHighAccuracy: true, maximumAge: 1000, timeout: 5000 
+                    });
                 }
+
+                radarActivo = true;
+                btn.innerText = "Desactivar Radar";
+                btn.classList.add('btn-danger');
+                document.getElementById('estado-radar').innerText = "Activo";
+                document.getElementById('estado-conexion').innerText = "Conectado";
+                document.getElementById('estado-conexion').style.color = "#16a34a";
+                
+                // Empezar a escuchar si hay viajes asignados
+                intervaloVerificarViaje = setInterval(verificarSolicitudesViaje, 3000);
+
             } else {
-                if (watchId !== null) navigator.geolocation.clearWatch(watchId);
-                if (intervaloEscucha) clearInterval(intervaloEscucha);
-                conectado = false;
+                if (watchId) navigator.geolocation.clearWatch(watchId);
+                if (intervaloVerificarViaje) clearInterval(intervaloVerificarViaje);
+                radarActivo = false;
                 btn.innerText = "Conectar y Activar Radar";
-                btn.classList.remove('activo');
+                btn.classList.remove('btn-danger');
+                document.getElementById('estado-radar').innerText = "En Espera";
+                document.getElementById('estado-conexion').innerText = "Desconectado";
+                document.getElementById('estado-conexion').style.color = "#64748b";
             }
         }
 
         function enviarPosicionAlServidor(lat, lon) {
-            const formData = new URLSearchParams();
-            formData.append('nombre', nombreConductor);
-            formData.append('placa', placaConductor);
-            formData.append('lat', lat);
-            formData.append('lon', lon);
-
-            fetch(`${BACKEND_URL}/api/registrar-conductor`, {
+            fetch(`${BACKEND_URL}/api/actualizar-conductor`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: formData
-            }).catch(err => console.error("Error sincronizando GPS:", err));
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nombre: nombreConductor, placa: placaConductor, lat: lat, lon: lon })
+            }).catch(err => console.error("Error enviando posición:", err));
         }
 
-        function iniciarEscuchaCarreras() {
-            intervaloEscucha = setInterval(() => {
-                if (!conectado || viajeActivoId) return;
-                fetch(`${BACKEND_URL}/api/verificar-viaje-conductor?placa=${encodeURIComponent(placaConductor)}`)
-                    .then(res => res.json())
-                    .then(data => {
-                        if (data.tiene_viaje) {
-                            viajeActivoId = data.viaje_id;
-                            mostrarAlertaViaje(data);
-                        }
-                    }).catch(err => console.error(err));
-            }, 3000);
-        }
-
-        function mostrarAlertaViaje(data) {
-            const alertaDiv = document.getElementById('alerta-viaje');
-            const textoDiv = document.getElementById('alerta-texto');
-            const btnAceptar = document.querySelector('.btn-aceptar');
-            
-            let segundosRestantes = 15;
-            btnAceptar.innerText = `Aceptar (${segundosRestantes}s)`;
-            textoDiv.innerHTML = `<strong>Destino:</strong> ${data.destino}<br><em>Dirígete al punto de recogida del pasajero.</em>`;
-            alertaDiv.style.display = 'flex';
-
-            const pasIcon = L.divIcon({ html: '👤', className: 'custom-pasajero-marker', iconSize: [26, 26] });
-            L.marker([data.lat, data.lon], { icon: pasIcon }).addTo(map).bindPopup("<b>Pasajero esperando</b>").openPopup();
-
-            if (cuentaRegresivaInterval) clearInterval(cuentaRegresivaInterval);
-            cuentaRegresivaInterval = setInterval(() => {
-                segundosRestantes--;
-                btnAceptar.innerText = `Aceptar (${segundosRestantes}s)`;
-                if (segundosRestantes <= 0) {
-                    clearInterval(cuentaRegresivaInterval);
-                    if (viajeActivoId === data.viaje_id && alertaDiv.style.display === 'flex') {
-                        responderCarrera('RECHAZADO');
+        // Consultar si hay un viaje asignado a este conductor
+        function verificarSolicitudesViaje() {
+            fetch(`${BACKEND_URL}/api/verificar-viaje?placa=${placaConductor}`)
+                .then(res => res.json())
+                .then(viaje => {
+                    if (viaje && viaje.asignado) {
+                        mostrarRutasNavegacion(viaje.latPasajero, viaje.lonPasajero, viaje.latDestino, viaje.lonDestino, viaje.pasajero);
                     }
-                }
-            }, 1000);
+                })
+                .catch(err => console.error("Error verificando viaje:", err));
         }
 
-        function responderCarrera(respuesta) {
-            if (!viajeActivoId) return;
-            if (cuentaRegresivaInterval) clearInterval(cuentaRegresivaInterval);
+        // Trazar las 2 rutas diferenciadas (Ruta 1: Moto -> Pasajero | Ruta 2: Pasajero -> Destino)
+        function mostrarRutasNavegacion(latP, lonP, latD, lonD, nombrePasajero) {
+            if (routingRuta1) map.removeControl(routingRuta1);
+            if (routingRuta2) map.removeControl(routingRuta2);
 
-            const formData = new URLSearchParams();
-            formData.append('viaje_id', viajeActivoId);
-            formData.append('respuesta', respuesta);
+            // Marcador de recogida del pasajero
+            if (!marcadorRecogidaPasajero) {
+                marcadorRecogidaPasajero = L.marker([latP, lonP]).addTo(map).bindPopup(`<b>Recoger a:</b> ${nombrePasajero}`).openPopup();
+            } else {
+                marcadorRecogidaPasajero.setLatLng([latP, lonP]);
+            }
 
-            fetch(`${BACKEND_URL}/api/responder-viaje`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: formData
-            })
-            .then(res => res.json())
-            .then(data => {
-                document.getElementById('alerta-viaje').style.display = 'none';
-                if (respuesta === 'ACEPTADO') {
-                    alert("¡Carrera aceptada con éxito! Dirígete por el pasajero.");
-                } else {
-                    alert("Solicitud rechazada o expirada.");
-                    viajeActivoId = null;
-                }
-            }).catch(err => console.error(err));
+            // Marcador de destino final (Rojo)
+            const redIcon = L.icon({
+                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+                shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+                iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+            });
+            if (!marcadorDestinoFinal) {
+                marcadorDestinoFinal = L.marker([latD, lonD], { icon: redIcon }).addTo(map).bindPopup("<b>Destino Final</b>");
+            } else {
+                marcadorDestinoFinal.setLatLng([latD, lonD]);
+            }
+
+            // RUTA 1: Conductor hacia el Pasajero (Estilo Azul)
+            routingRuta1 = L.Routing.control({
+                waypoints: [L.latLng(latActual, lonActual), L.latLng(latP, lonP)],
+                routeWhileDragging: false, addWaypoints: false, createMarker: function() { return null; },
+                lineOptions: { styles: [{ color: '#2563eb', weight: 5, opacity: 0.8 }] } // Azul
+            }).addTo(map);
+
+            // RUTA 2: Pasajero hacia el Destino (Estilo Verde Diferenciado)
+            routingRuta2 = L.Routing.control({
+                waypoints: [L.latLng(latP, lonP), L.latLng(latD, lonD)],
+                routeWhileDragging: false, addWaypoints: false, createMarker: function() { return null; },
+                lineOptions: { styles: [{ color: '#16a34a', weight: 5, opacity: 0.8 }] } // Verde
+            }).addTo(map);
+
+            document.getElementById('info-conductor').innerHTML = `
+                <strong>¡Viaje Asignado!</strong><br>
+                <strong>Pasajero:</strong> ${nombrePasajero}<br>
+                <span style="color:#2563eb; font-weight:650;">■ Ruta Azul: Hacia el pasajero</span><br>
+                <span style="color:#16a34a; font-weight:650;">■ Ruta Verde: Hacia el destino</span><br><br>
+                <button onclick="rechazarViaje()" style="background:#dc2626; color:white; border:none; padding:8px 14px; border-radius:8px; cursor:pointer; font-size:12px; font-weight:700; width:100%;">Rechazar / Cancelar Viaje</button>
+            `;
+        }
+
+        function rechazarViaje() {
+            if (routingRuta1) map.removeControl(routingRuta1);
+            if (routingRuta2) map.removeControl(routingRuta2);
+            if (marcadorRecogidaPasajero) map.removeLayer(marcadorRecogidaPasajero);
+            if (marcadorDestinoFinal) map.removeLayer(marcadorDestinoFinal);
+            
+            routingRuta1 = null;
+            routingRuta2 = null;
+            marcadorRecogidaPasajero = null;
+            marcadorDestinoFinal = null;
+
+            document.getElementById('info-conductor').innerHTML = `
+                <strong>Conductor:</strong> ${nombreConductor}<br>
+                <strong>Placa:</strong> ${placaConductor}<br>
+                <em>Radar activo esperando nuevas solicitudes...</em>
+            `;
+
+            // Notificar al backend que se rechazó el viaje
+            fetch(`${BACKEND_URL}/api/rechazar-viaje?placa=${placaConductor}`, { method: 'POST' })
+                .catch(err => console.error("Error al rechazar viaje:", err));
         }
     </script>
 </body>
