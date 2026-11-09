@@ -24,6 +24,7 @@
             font-size: 11px; background: #eff6ff; color: #1d4ed8;
             padding: 4px 8px; border-radius: 6px; font-weight: 700; text-transform: uppercase;
         }
+        .back-link { font-size: 12px; color: #3b82f6; text-decoration: none; font-weight: 600; }
         
         .stats-grid {
             display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: #f8fafc;
@@ -33,11 +34,10 @@
         .stat-value { font-size: 15px; font-weight: 700; color: #0f172a; }
         .stat-label { font-size: 11px; color: #64748b; font-weight: 500; }
 
-        .input-row { display: flex; gap: 10px; }
-        .input-group { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+        .input-group { display: flex; flex-direction: column; gap: 4px; }
         .input-group label { font-size: 11px; font-weight: 600; color: #64748b; }
         .input-field {
-            padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px;
+            padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px;
             font-size: 13px; outline: none; color: #0f172a;
         }
 
@@ -63,10 +63,30 @@
 
     <div id="map"></div>
 
-    <div class="driver-panel">
+    <!-- PANEL 1: REGISTRO ÚNICO DE CONDUCTOR -->
+    <div class="driver-panel" id="panel-registro">
         <div class="card-header">
             <div class="app-title">MotoGo Conductor 🛵</div>
-            <div class="service-type">Radar en Vivo</div>
+            <a href="index.html" class="back-link">Ir a Pasajero</a>
+        </div>
+        <p style="font-size: 12px; color: #64748b;">Ingresa tus datos reales una sola vez para validar tu vehículo en la red.</p>
+        
+        <div class="input-group">
+            <label>Nombre y Apellido Real</label>
+            <input type="text" id="nombre-input" class="input-field" placeholder="Ej. Carlos Mendoza">
+        </div>
+        <div class="input-group">
+            <label>Placa Oficial del Vehículo</label>
+            <input type="text" id="placa-input" class="input-field" placeholder="Ej. 4582-1F">
+        </div>
+        <button class="btn-conectar" onclick="guardarRegistroConductor()">Guardar y Continuar</button>
+    </div>
+
+    <!-- PANEL 2: RADAR Y MAPA DE CALOR -->
+    <div class="driver-panel" id="panel-radar" style="display: none;">
+        <div class="card-header">
+            <div class="app-title" id="driver-title">MotoGo Conductor 🛵</div>
+            <button onclick="cerrarSesionConductor()" style="background:none; border:none; color:#ef4444; font-size:12px; cursor:pointer; font-weight:600;">Cambiar Datos</button>
         </div>
 
         <div class="stats-grid">
@@ -75,25 +95,14 @@
                 <div class="stat-label">Zonas Activas Reales</div>
             </div>
             <div class="stat-item">
-                <div class="stat-value" style="color: #16a34a;">En Línea</div>
-                <div class="stat-label">Estado GPS</div>
+                <div class="stat-value" style="color: #16a34a;">Verificado</div>
+                <div class="stat-label">Estado de Cuenta</div>
             </div>
         </div>
 
         <div class="heatmap-legend">
             <div class="pulse-dot"></div>
             <div><strong>Mapa de Calor Real:</strong> Los círculos rojos muestran dónde los pasajeros han solicitado viajes en tiempo real.</div>
-        </div>
-
-        <div class="input-row">
-            <div class="input-group">
-                <label>Conductor</label>
-                <input type="text" id="nombre-input" class="input-field" value="Juan Pérez">
-            </div>
-            <div class="input-group">
-                <label>Placa</label>
-                <input type="text" id="placa-input" class="input-field" value="MOT-9999">
-            </div>
         </div>
 
         <button id="btn-toggle" class="btn-conectar" onclick="toggleConexion()">Conectar y Activar Radar</button>
@@ -113,6 +122,43 @@
         let watchId = null;
         let conectado = false;
         let capasCalor = [];
+        let nombreConductor = "";
+        let placaConductor = "";
+
+        window.onload = function() {
+            const guardadoPlaca = localStorage.getItem('motogo_placa');
+            const guardadoNombre = localStorage.getItem('motogo_nombre');
+
+            if (guardadoPlaca && guardadoNombre) {
+                nombreConductor = guardadoNombre;
+                placaConductor = guardadoPlaca;
+                document.getElementById('panel-registro').style.display = 'none';
+                document.getElementById('panel-radar').style.display = 'flex';
+                document.getElementById('driver-title').innerText = `${nombreConductor} (${placaConductor})`;
+            }
+        };
+
+        function guardarRegistroConductor() {
+            const nombre = document.getElementById('nombre-input').value.trim();
+            const placa = document.getElementById('placa-input').value.trim();
+
+            if (!nombre || placa.length < 4) {
+                alert("Por favor ingresa un nombre válido y una placa oficial correcta.");
+                return;
+            }
+
+            localStorage.setItem('motogo_nombre', nombre);
+            localStorage.setItem('motogo_placa', placa);
+            location.reload();
+        }
+
+        function cerrarSesionConductor() {
+            if (confirm("¿Deseas cambiar los datos registrados de tu vehículo?")) {
+                localStorage.removeItem('motogo_nombre');
+                localStorage.removeItem('motogo_placa');
+                location.reload();
+            }
+        }
 
         function cargarMapaDeCalorReal() {
             fetch('/api/zonas-calor')
@@ -139,10 +185,6 @@
 
         function toggleConexion() {
             const btn = document.getElementById('btn-toggle');
-            const nombre = document.getElementById('nombre-input').value;
-            const placa = document.getElementById('placa-input').value;
-
-            if (!nombre || !placa) { alert("Ingresa tu nombre y placa."); return; }
 
             if (!conectado) {
                 if (navigator.geolocation) {
@@ -163,7 +205,7 @@
                             markerConductor.setLatLng([lat, lon]);
                         }
 
-                        enviarPosicionAlServidor(nombre, placa, lat, lon);
+                        enviarPosicionAlServidor(nombreConductor, placaConductor, lat, lon);
 
                     }, error => {
                         alert("Error de GPS: " + error.message);
