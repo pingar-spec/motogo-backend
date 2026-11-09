@@ -100,8 +100,10 @@ public class Main {
                 pstmt.setDouble(3, Double.parseDouble(latStr));
                 pstmt.setDouble(4, Double.parseDouble(lonStr));
                 pstmt.executeUpdate();
+                System.out.println("📡 GPS Recibido y Guardado -> Conductor: " + nombre + " [" + placa + "]");
                 ctx.json(Map.of("exito", true));
             } catch (Exception e) {
+                System.err.println("❌ Error al guardar conductor: " + e.getMessage());
                 ctx.status(500).json(Map.of("exito", false, "error", e.getMessage()));
             }
         });
@@ -190,6 +192,35 @@ public class Main {
             ctx.contentType("application/json");
             ctx.result(json.toString());
         });
+
+        // 6. DIAGNÓSTICO: Ver todos los conductores registrados en la BD en tiempo real
+        app.get("/api/listar-conductores", ctx -> {
+            String urlDb = "jdbc:mysql://" + HOST + ":" + PORT_DB + "/motogo_db?sslMode=VERIFY_IDENTITY";
+            StringBuilder json = new StringBuilder("[");
+            String query = "SELECT id, nombre, placa, latitud, longitud, disponible FROM conductores";
+
+            try (Connection conn = DriverManager.getConnection(urlDb, USER, PASSWORD);
+                 Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery(query)) {
+
+                boolean primero = true;
+                while (rs.next()) {
+                    if (!primero) json.append(",");
+                    json.append("{\"id\":").append(rs.getInt("id"))
+                        .append(",\"nombre\":\"").append(rs.getString("nombre"))
+                        .append("\",\"placa\":\"").append(rs.getString("placa"))
+                        .append("\",\"lat\":").append(rs.getDouble("latitud"))
+                        .append(",\"lon\":").append(rs.getDouble("longitud"))
+                        .append("}");
+                    primero = false;
+                }
+            } catch (Exception e) {
+                System.err.println("Error listando conductores: " + e.getMessage());
+            }
+            json.append("]");
+            ctx.contentType("application/json");
+            ctx.result(json.toString());
+        });
     }
 
     private static void inicializarBaseDeDatosNacional() {
@@ -258,7 +289,6 @@ public class Main {
         Map<String, Object> mejorConductor = null;
         double menorDistancia = Double.MAX_VALUE;
 
-        // Búsqueda flexible que evalúa a todos los conductores activos en la tabla
         String query = "SELECT id, nombre, placa, latitud, longitud FROM conductores";
 
         try (Connection conn = DriverManager.getConnection(urlDb, USER, PASSWORD);
