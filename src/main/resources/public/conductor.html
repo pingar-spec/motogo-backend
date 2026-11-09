@@ -44,6 +44,14 @@
             background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
             box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
         }
+        .btn-accept {
+            background: #16a34a; color: white; border: none; padding: 10px; border-radius: 8px;
+            font-weight: 700; cursor: pointer; flex: 1; font-size: 13px;
+        }
+        .btn-reject {
+            background: #dc2626; color: white; border: none; padding: 10px; border-radius: 8px;
+            font-weight: 700; cursor: pointer; flex: 1; font-size: 13px;
+        }
 
         .custom-moto-marker { font-size: 28px; text-align: center; }
     </style>
@@ -96,9 +104,10 @@
         let marcadorConductor = null;
         let marcadorRecogidaPasajero = null;
         let marcadorDestinoFinal = null;
-        let routingRuta1 = null; // Ruta Hacia Pasajero (Color Azul)
-        let routingRuta2 = null; // Ruta Hacia Destino (Color Verde)
+        let routingRuta1 = null; // Ruta Azul (Hacia Pasajero)
+        let routingRuta2 = null; // Ruta Verde (Hacia Destino Final)
         let intervaloVerificarViaje = null;
+        let viajePendienteActual = null;
 
         const BACKEND_URL = "https://motogo-backend-kx9f.onrender.com";
         const placaConductor = "B5Y-957";
@@ -116,7 +125,7 @@
                         lonActual = pos.coords.longitude;
                         const precision = pos.coords.accuracy;
 
-                        if (precision > 50) return; // Filtrar saltos de GPS muy bruscos
+                        if (precision > 50) return; // Filtrar saltos bruscos de GPS
 
                         const motoIcon = L.divIcon({ html: '🛵', className: 'custom-moto-marker', iconSize: [32, 32] });
                         
@@ -141,7 +150,7 @@
                 document.getElementById('estado-conexion').innerText = "Conectado";
                 document.getElementById('estado-conexion').style.color = "#16a34a";
                 
-                // Empezar a escuchar si hay viajes asignados
+                // Consultar solicitudes cada 3 segundos
                 intervaloVerificarViaje = setInterval(verificarSolicitudesViaje, 3000);
 
             } else {
@@ -164,29 +173,69 @@
             }).catch(err => console.error("Error enviando posición:", err));
         }
 
-        // Consultar si hay un viaje asignado a este conductor
+        // Consultar si hay una solicitud entrante
         function verificarSolicitudesViaje() {
             fetch(`${BACKEND_URL}/api/verificar-viaje?placa=${placaConductor}`)
                 .then(res => res.json())
                 .then(viaje => {
-                    if (viaje && viaje.asignado) {
-                        mostrarRutasNavegacion(viaje.latPasajero, viaje.lonPasajero, viaje.latDestino, viaje.lonDestino, viaje.pasajero);
+                    if (viaje && viaje.en_espera && !viajePendienteActual) {
+                        viajePendienteActual = viaje;
+                        mostrarAlertaSolicitud(viaje);
                     }
                 })
                 .catch(err => console.error("Error verificando viaje:", err));
         }
 
-        // Trazar las 2 rutas diferenciadas (Ruta 1: Moto -> Pasajero | Ruta 2: Pasajero -> Destino)
-        function mostrarRutasNavegacion(latP, lonP, latD, lonD, nombrePasajero) {
-            if (routingRuta1) map.removeControl(routingRuta1);
-            if (routingRuta2) map.removeControl(routingRuta2);
+        // Mostrar tarjeta con botones Aceptar / Rechazar
+        function mostrarAlertaSolicitud(viaje) {
+            document.getElementById('info-conductor').innerHTML = `
+                <strong style="color: #2563eb;">¡Nueva Solicitud de Pasajero!</strong><br>
+                <strong>Pasajero:</strong> ${viaje.pasajero}<br>
+                <strong>Destino:</strong> ${viaje.destino}<br><br>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn-accept" onclick="aceptarViaje()">Aceptar</button>
+                    <button class="btn-reject" onclick="rechazarViaje()">Rechazar</button>
+                </div>
+            `;
+        }
 
-            // Marcador de recogida del pasajero
-            if (!marcadorRecogidaPasajero) {
-                marcadorRecogidaPasajero = L.marker([latP, lonP]).addTo(map).bindPopup(`<b>Recoger a:</b> ${nombrePasajero}`).openPopup();
-            } else {
-                marcadorRecogidaPasajero.setLatLng([latP, lonP]);
-            }
+        function aceptarViaje() {
+            if (!viajePendienteActual) return;
+
+            const viaje = viajePendienteActual;
+            
+            // Enviar confirmación al backend
+            fetch(`${BACKEND_URL}/api/aceptar-viaje?placa=${placaConductor}`, { method: 'POST' })
+                .catch(err => console.error("Error al aceptar viaje:", err));
+
+            // Dibujar las rutas diferenciadas en el mapa del conductor
+            trazarRutasNavegacion(viaje.latPasajero, viaje.lonPasajero, viaje.latDestino, viaje.lonDestino, viaje.pasajero);
+        }
+
+        function rechazarViaje() {
+            viajePendienteActual = null;
+            
+            // Limpiar rutas si existían
+            limpiarRutasMapa();
+
+            // Notificar al backend que se rechazó para liberar al pasajero
+            fetch(`${BACKEND_URL}/api/rechazar-viaje?placa=${placaConductor}`, { method: 'POST' })
+                .catch(err => console.error("Error al rechazar viaje:", err));
+
+            document.getElementById('info-conductor').innerHTML = `
+                <strong>Conductor:</strong> ${nombreConductor}<br>
+                <strong>Placa:</strong> ${placaConductor}<br>
+                <em>Radar activo esperando nuevas solicitudes...</em>
+            `;
+        }
+
+        // Trazar Ruta 1 (Azul: Moto -> Pasajero) y Ruta 2 (Verde: Pasajero -> Destino)
+        function trazarRutasNavegacion(latP, lonP, latD, lonD, nombrePasajero) {
+            limpiarRutasMapa();
+
+            // Marcador de recogida
+            marcadorRecogidaPasajero = L.marker([latP, lonP]).addTo(map)
+                .bindPopup(`<b>Recoger a:</b> ${nombrePasajero}`).openPopup();
 
             // Marcador de destino final (Rojo)
             const redIcon = L.icon({
@@ -194,55 +243,37 @@
                 shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
                 iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
             });
-            if (!marcadorDestinoFinal) {
-                marcadorDestinoFinal = L.marker([latD, lonD], { icon: redIcon }).addTo(map).bindPopup("<b>Destino Final</b>");
-            } else {
-                marcadorDestinoFinal.setLatLng([latD, lonD]);
-            }
+            marcadorDestinoFinal = L.marker([latD, lonD], { icon: redIcon }).addTo(map)
+                .bindPopup("<b>Destino Final</b>");
 
-            // RUTA 1: Conductor hacia el Pasajero (Estilo Azul)
+            // RUTA 1: Conductor hacia el Pasajero (Color Azul)
             routingRuta1 = L.Routing.control({
                 waypoints: [L.latLng(latActual, lonActual), L.latLng(latP, lonP)],
                 routeWhileDragging: false, addWaypoints: false, createMarker: function() { return null; },
-                lineOptions: { styles: [{ color: '#2563eb', weight: 5, opacity: 0.8 }] } // Azul
+                lineOptions: { styles: [{ color: '#2563eb', weight: 6, opacity: 0.85 }] }
             }).addTo(map);
 
-            // RUTA 2: Pasajero hacia el Destino (Estilo Verde Diferenciado)
+            // RUTA 2: Pasajero hacia el Destino (Color Verde)
             routingRuta2 = L.Routing.control({
                 waypoints: [L.latLng(latP, lonP), L.latLng(latD, lonD)],
                 routeWhileDragging: false, addWaypoints: false, createMarker: function() { return null; },
-                lineOptions: { styles: [{ color: '#16a34a', weight: 5, opacity: 0.8 }] } // Verde
+                lineOptions: { styles: [{ color: '#16a34a', weight: 6, opacity: 0.85 }] }
             }).addTo(map);
 
             document.getElementById('info-conductor').innerHTML = `
-                <strong>¡Viaje Asignado!</strong><br>
+                <strong>¡Viaje en Curso!</strong><br>
                 <strong>Pasajero:</strong> ${nombrePasajero}<br>
-                <span style="color:#2563eb; font-weight:650;">■ Ruta Azul: Hacia el pasajero</span><br>
-                <span style="color:#16a34a; font-weight:650;">■ Ruta Verde: Hacia el destino</span><br><br>
-                <button onclick="rechazarViaje()" style="background:#dc2626; color:white; border:none; padding:8px 14px; border-radius:8px; cursor:pointer; font-size:12px; font-weight:700; width:100%;">Rechazar / Cancelar Viaje</button>
+                <span style="color:#2563eb; font-weight:700;">■ Ruta Azul: Hacia el punto de recojo</span><br>
+                <span style="color:#16a34a; font-weight:700;">■ Ruta Verde: Hacia el destino final</span><br><br>
+                <button onclick="rechazarViaje()" style="background:#dc2626; color:white; border:none; padding:8px 14px; border-radius:8px; cursor:pointer; font-size:12px; font-weight:700; width:100%;">Finalizar / Cancelar Servicio</button>
             `;
         }
 
-        function rechazarViaje() {
-            if (routingRuta1) map.removeControl(routingRuta1);
-            if (routingRuta2) map.removeControl(routingRuta2);
-            if (marcadorRecogidaPasajero) map.removeLayer(marcadorRecogidaPasajero);
-            if (marcadorDestinoFinal) map.removeLayer(marcadorDestinoFinal);
-            
-            routingRuta1 = null;
-            routingRuta2 = null;
-            marcadorRecogidaPasajero = null;
-            marcadorDestinoFinal = null;
-
-            document.getElementById('info-conductor').innerHTML = `
-                <strong>Conductor:</strong> ${nombreConductor}<br>
-                <strong>Placa:</strong> ${placaConductor}<br>
-                <em>Radar activo esperando nuevas solicitudes...</em>
-            `;
-
-            // Notificar al backend que se rechazó el viaje
-            fetch(`${BACKEND_URL}/api/rechazar-viaje?placa=${placaConductor}`, { method: 'POST' })
-                .catch(err => console.error("Error al rechazar viaje:", err));
+        function limpiarRutasMapa() {
+            if (routingRuta1) { map.removeControl(routingRuta1); routingRuta1 = null; }
+            if (routingRuta2) { map.removeControl(routingRuta2); routingRuta2 = null; }
+            if (marcadorRecogidaPasajero) { map.removeLayer(marcadorRecogidaPasajero); marcadorRecogidaPasajero = null; }
+            if (marcadorDestinoFinal) { map.removeLayer(marcadorDestinoFinal); marcadorDestinoFinal = null; }
         }
     </script>
 </body>
