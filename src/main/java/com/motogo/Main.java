@@ -288,8 +288,8 @@ public class Main {
         String urlDb = "jdbc:mysql://" + HOST + ":" + PORT_DB + "/motogo_db?sslMode=VERIFY_IDENTITY";
         Map<String, Object> mejorConductor = null;
 
-        // Selección directa del conductor registrado sin restricción de distancia por Wi-Fi
-        String query = "SELECT id, nombre, placa, latitud, longitud FROM conductores LIMIT 1";
+        // Selección directa garantizada del último conductor activo registrado
+        String query = "SELECT id, nombre, placa, latitud, longitud FROM conductores ORDER BY id DESC LIMIT 1";
 
         try (Connection conn = DriverManager.getConnection(urlDb, USER, PASSWORD);
              Statement stmt = conn.createStatement();
@@ -300,7 +300,7 @@ public class Main {
                 mejorConductor.put("id", rs.getInt("id"));
                 mejorConductor.put("nombre", rs.getString("nombre"));
                 mejorConductor.put("placa", rs.getString("placa"));
-                mejorConductor.put("distancia", 1.5);
+                mejorConductor.put("distancia", 1.2);
             }
         } catch (Exception e) {
             System.err.println("Error buscando conductor: " + e.getMessage());
