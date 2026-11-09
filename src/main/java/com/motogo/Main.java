@@ -35,9 +35,9 @@ public class Main {
             ctx.header("Access-Control-Allow-Headers", "*");
         });
 
-        System.out.println("¡Servidor MotoGo Backend con Sistema de Oferta Activo en el puerto " + puertoApp + "!");
+        System.out.println("¡Servidor MotoGo Backend Activo en el puerto " + puertoApp + "!");
 
-        // 1. PASAJERO: Solicitar Viaje y Asignar Conductor (Estado Pendiente de Respuesta)
+        // 1. PASAJERO: Solicitar Viaje y Asignar Conductor
         app.post("/api/solicitar-viaje", ctx -> {
             String latStr = ctx.queryParam("lat");
             String lonStr = ctx.queryParam("lon");
@@ -60,24 +60,24 @@ public class Main {
                 String placaConductor = (String) conductorAsignado.get("placa");
                 double distancia = (double) conductorAsignado.get("distancia");
 
-                // Registrar el viaje activo en estado PENDIENTE con límite de tiempo (15 segundos)
                 int viajeId = crearViajePendiente(conductorId, pasajeroLat, pasajeroLon, destino);
 
-                System.out.println("⏳ Viaje " + viajeId + " ofrecido a conductor: " + placaConductor);
+                System.out.println("✅ ¡Viaje enlazado! Conductor: " + nombreConductor + " (" + placaConductor + ")");
                 ctx.json(Map.of(
                     "exito", true,
                     "viaje_id", viajeId,
                     "conductor_asignado", nombreConductor,
                     "placa", placaConductor,
                     "distancia_km", distancia,
-                    "mensaje", "Esperando respuesta del conductor..."
+                    "destino", destino != null ? destino : "Destino general"
                 ));
             } else {
-                ctx.status(404).json(Map.of("exito", false, "mensaje", "No hay unidades disponibles en este momento."));
+                System.out.println("⚠️ Solicitud recibida, pero NO hay conductores registrados en la BD.");
+                ctx.status(404).json(Map.of("exito", false, "mensaje", "No hay unidades disponibles en este momento. Asegúrate de conectar el radar en tu celular."));
             }
         });
 
-        // 2. CONDUCTOR: Registrar / Transmitir GPS y actualizar disponibilidad
+        // 2. CONDUCTOR: Registrar / Transmitir GPS
         app.post("/api/registrar-conductor", ctx -> {
             String nombre = ctx.formParam("nombre");
             String placa = ctx.formParam("placa");
@@ -106,7 +106,7 @@ public class Main {
             }
         });
 
-        // 3. CONDUCTOR: Verificar si tiene carreras pendientes en los últimos 15 segundos
+        // 3. CONDUCTOR: Verificar si tiene carreras pendientes
         app.get("/api/verificar-viaje-conductor", ctx -> {
             String placa = ctx.queryParam("placa");
             if (placa == null) {
@@ -145,7 +145,7 @@ public class Main {
         // 4. CONDUCTOR: Aceptar o Rechazar la carrera
         app.post("/api/responder-viaje", ctx -> {
             String viajeId = ctx.formParam("viaje_id");
-            String respuesta = ctx.formParam("respuesta"); // ACEPTADO o RECHAZADO
+            String respuesta = ctx.formParam("respuesta");
 
             if (viajeId == null || respuesta == null) {
                 ctx.status(400).json(Map.of("exito", false, "mensaje", "Datos incompletos."));
@@ -160,41 +160,13 @@ public class Main {
                 pstmt.setString(1, respuesta.toUpperCase());
                 pstmt.setInt(2, Integer.parseInt(viajeId));
                 pstmt.executeUpdate();
-
                 ctx.json(Map.of("exito", true, "estado", respuesta.toUpperCase()));
             } catch (Exception e) {
                 ctx.status(500).json(Map.of("exito", false, "error", e.getMessage()));
             }
         });
 
-        // 5. PASAJERO: Consultar el estado del viaje solicitado en tiempo real
-        app.get("/api/estado-viaje", ctx -> {
-            String viajeId = ctx.queryParam("viaje_id");
-            if (viajeId == null) {
-                ctx.status(400).json(Map.of("estado", "DESCONOCIDO"));
-                return;
-            }
-
-            String urlDb = "jdbc:mysql://" + HOST + ":" + PORT_DB + "/motogo_db?sslMode=VERIFY_IDENTITY";
-            String query = "SELECT estado FROM viajes WHERE id = ?";
-
-            try (Connection conn = DriverManager.getConnection(urlDb, USER, PASSWORD);
-                 PreparedStatement pstmt = conn.prepareStatement(query)) {
-                pstmt.setInt(1, Integer.parseInt(viajeId));
-                try (ResultSet rs = pstmt.executeQuery()) {
-                    if (rs.next()) {
-                        ctx.json(Map.of("estado", rs.getString("estado")));
-                        return;
-                    }
-                }
-            } catch (Exception e) {
-                System.err.println("Error consultando estado: " + e.getMessage());
-            }
-
-            ctx.json(Map.of("estado", "EXPIRADO"));
-        });
-
-        // 6. ZONAS DE CALOR (Solicitudes reales)
+        // 5. ZONAS DE CALOR
         app.get("/api/zonas-calor", ctx -> {
             String urlDb = "jdbc:mysql://" + HOST + ":" + PORT_DB + "/motogo_db?sslMode=VERIFY_IDENTITY";
             StringBuilder json = new StringBuilder("[");
@@ -239,13 +211,12 @@ public class Main {
                     "id INT AUTO_INCREMENT PRIMARY KEY, latitud DECIMAL(10, 8), longitud DECIMAL(11, 8), " +
                     "destino VARCHAR(255), fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP);");
 
-            // Tabla de viajes para controlar la oferta al conductor (15 segundos)
             stmt.executeUpdate("CREATE TABLE IF NOT EXISTS viajes (" +
                     "id INT AUTO_INCREMENT PRIMARY KEY, conductor_id INT, latitud DECIMAL(10, 8), " +
                     "longitud DECIMAL(11, 8), destino VARCHAR(255), estado VARCHAR(30) DEFAULT 'PENDIENTE', " +
                     "creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP);");
 
-            System.out.println("Base de datos y tablas de interacción en tiempo real verificadas.");
+            System.out.println("Base de datos motogo_db verificada correctamente.");
         } catch (Exception e) {
             System.err.println("Error inicializando BD: " + e.getMessage());
         }
@@ -277,7 +248,7 @@ public class Main {
                 if (rs.next()) return rs.getInt(1);
             }
         } catch (Exception e) {
-            System.err.println("Error creando viaje pendiente: " + e.getMessage());
+            System.err.println("Error creando viaje: " + e.getMessage());
         }
         return -1;
     }
@@ -287,7 +258,8 @@ public class Main {
         Map<String, Object> mejorConductor = null;
         double menorDistancia = Double.MAX_VALUE;
 
-        String query = "SELECT id, nombre, placa, latitud, longitud FROM conductores WHERE disponible = TRUE";
+        // Búsqueda flexible que evalúa a todos los conductores activos en la tabla
+        String query = "SELECT id, nombre, placa, latitud, longitud FROM conductores";
 
         try (Connection conn = DriverManager.getConnection(urlDb, USER, PASSWORD);
              Statement stmt = conn.createStatement();
@@ -312,7 +284,7 @@ public class Main {
                 }
             }
         } catch (Exception e) {
-            System.err.println("Error en Haversine: " + e.getMessage());
+            System.err.println("Error en Haversine flexible: " + e.getMessage());
         }
 
         return mejorConductor;
