@@ -37,7 +37,7 @@ public class Main {
 
         System.out.println("¡Servidor MotoGo Backend Activo en el puerto " + puertoApp + "!");
 
-        // 1. PASAJERO: Solicitar Viaje y Asignar Conductor (con coordenadas de destino)
+        // 1. PASAJERO: Solicitar Viaje y Asignar Conductor
         app.post("/api/solicitar-viaje", ctx -> {
             String latStr = ctx.queryParam("lat");
             String lonStr = ctx.queryParam("lon");
@@ -123,7 +123,7 @@ public class Main {
             String query = "SELECT v.id, v.latitud, v.longitud, v.destino, v.lat_destino, v.lon_destino, 'Piero Pasajero' as pasajero FROM viajes v " +
                            "JOIN conductores c ON v.conductor_id = c.id " +
                            "WHERE c.placa = ? AND v.estado = 'PENDIENTE' " +
-                           "AND TIMESTAMPDIFF(SECOND, v.creado_en, NOW()) <= 30 LIMIT 1";
+                           "AND TIMESTAMPDIFF(SECOND, v.creado_en, NOW()) <= 20 LIMIT 1";
 
             try (Connection conn = DriverManager.getConnection(urlDb, USER, PASSWORD);
                  PreparedStatement pstmt = conn.prepareStatement(query)) {
@@ -241,7 +241,12 @@ public class Main {
             stmt.executeUpdate("CREATE TABLE IF NOT EXISTS ciudades (id INT AUTO_INCREMENT PRIMARY KEY, nombre VARCHAR(100), departamento VARCHAR(100));");
             stmt.executeUpdate("CREATE TABLE IF NOT EXISTS conductores (id INT AUTO_INCREMENT PRIMARY KEY, nombre VARCHAR(150), placa VARCHAR(20) UNIQUE, ciudad_id INT, latitud DECIMAL(10, 8), longitud DECIMAL(11, 8), disponible BOOLEAN DEFAULT TRUE);");
             stmt.executeUpdate("CREATE TABLE IF NOT EXISTS solicitudes (id INT AUTO_INCREMENT PRIMARY KEY, latitud DECIMAL(10, 8), longitud DECIMAL(11, 8), destino VARCHAR(255), fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP);");
-            stmt.executeUpdate("CREATE TABLE IF NOT EXISTS viajes (id INT AUTO_INCREMENT PRIMARY KEY, conductor_id INT, latitud DECIMAL(10, 8), longitud DECIMAL(11, 8), destino VARCHAR(255), lat_destino DECIMAL(10, 8), lon_destino DECIMAL(11, 8), estado VARCHAR(30) DEFAULT 'PENDIENTE', creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP);");
+            
+            // Actualización automática de la tabla viajes con las columnas de destino
+            stmt.executeUpdate("DROP TABLE IF EXISTS viajes;");
+            stmt.executeUpdate("CREATE TABLE viajes (id INT AUTO_INCREMENT PRIMARY KEY, conductor_id INT, latitud DECIMAL(10, 8), longitud DECIMAL(11, 8), destino VARCHAR(255), lat_destino DECIMAL(10, 8), lon_destino DECIMAL(11, 8), estado VARCHAR(30) DEFAULT 'PENDIENTE', creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP);");
+            
+            System.out.println("¡Base de datos y tablas inicializadas correctamente desde Java!");
         } catch (Exception e) {
             System.err.println("Error inicializando BD: " + e.getMessage());
         }
