@@ -107,7 +107,7 @@ public class Main {
             }
         });
 
-        // 3. CONDUCTOR: Verificar si tiene carreras pendientes (Sincronizado)
+        // 3. CONDUCTOR: Verificar si tiene carreras pendientes
         app.get("/api/verificar-viaje-conductor", ctx -> {
             String placa = ctx.queryParam("placa");
             if (placa == null) {
@@ -116,7 +116,7 @@ public class Main {
             }
 
             String urlDb = "jdbc:mysql://" + HOST + ":" + PORT_DB + "/motogo_db?sslMode=VERIFY_IDENTITY";
-            String query = "SELECT v.id, v.latitud, v.longitud, v.destino, 'Pasajero' as pasajero FROM viajes v " +
+            String query = "SELECT v.id, v.latitud, v.longitud, v.destino, 'Piero Pasajero' as pasajero FROM viajes v " +
                            "JOIN conductores c ON v.conductor_id = c.id " +
                            "WHERE c.placa = ? AND v.estado = 'PENDIENTE' " +
                            "AND TIMESTAMPDIFF(SECOND, v.creado_en, NOW()) <= 45 LIMIT 1";
@@ -168,7 +168,34 @@ public class Main {
             }
         });
 
-        // 5. DIAGNÓSTICO: Listar conductores
+        // 5. PASAJERO: Consultar el estado del viaje en tiempo real (Aceptado/Rechazado)
+        app.get("/api/verificar-estado-viaje", ctx -> {
+            String viajeIdStr = ctx.queryParam("viaje_id");
+            if (viajeIdStr == null) {
+                ctx.status(400).json(Map.of("estado", "DESCONOCIDO"));
+                return;
+            }
+
+            String urlDb = "jdbc:mysql://" + HOST + ":" + PORT_DB + "/motogo_db?sslMode=VERIFY_IDENTITY";
+            String query = "SELECT estado FROM viajes WHERE id = ?";
+
+            try (Connection conn = DriverManager.getConnection(urlDb, USER, PASSWORD);
+                 PreparedStatement pstmt = conn.prepareStatement(query)) {
+                pstmt.setInt(1, Integer.parseInt(viajeIdStr));
+                try (ResultSet rs = pstmt.executeQuery()) {
+                    if (rs.next()) {
+                        ctx.json(Map.of("estado", rs.getString("estado")));
+                        return;
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("Error verificando estado del viaje: " + e.getMessage());
+            }
+
+            ctx.json(Map.of("estado", "PENDIENTE"));
+        });
+
+        // 6. DIAGNÓSTICO: Listar conductores
         app.get("/api/listar-conductores", ctx -> {
             String urlDb = "jdbc:mysql://" + HOST + ":" + PORT_DB + "/motogo_db?sslMode=VERIFY_IDENTITY";
             StringBuilder json = new StringBuilder("[");

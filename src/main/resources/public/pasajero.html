@@ -13,7 +13,7 @@
 
         #map { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
 
-        /* Ocultar totalmente la caja de texto flotante de instrucciones de ruta de Leaflet */
+        /* Ocultar la caja de texto flotante de Leaflet */
         .leaflet-routing-container { display: none !important; }
 
         .passenger-panel {
@@ -59,7 +59,6 @@
             box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4); text-align: center;
         }
         .btn-solicitar:disabled { background: #94a3b8; cursor: not-allowed; box-shadow: none; }
-
         .custom-moto-marker { font-size: 28px; text-align: center; }
     </style>
 </head>
@@ -77,22 +76,22 @@
         <div class="stats-grid">
             <div class="stat-item">
                 <div class="stat-value" id="estado-texto">Seleccionando</div>
-                <div class="stat-label">Estado de Solicitud</div>
+                <div class="stat-label">Estado</div>
             </div>
             <div class="stat-item">
                 <div class="stat-value" style="color: #16a34a;" id="unidades-cerca">Radar Activo</div>
-                <div class="stat-label">Unidades en Zona</div>
+                <div class="stat-label">Unidades</div>
             </div>
         </div>
 
         <div class="input-group">
-            <label>Buscar Destino (Calles, Distritos, Departamentos)</label>
-            <input type="text" id="destino-input" class="input-field" placeholder="Escribe cualquier lugar..." oninput="buscarSugerencias(this.value)">
+            <label>Buscar Destino (Calles, Distritos, Lugares)</label>
+            <input type="text" id="destino-input" class="input-field" placeholder="Escribe tu destino..." oninput="buscarSugerencias(this.value)">
             <div id="resultados-busqueda"></div>
         </div>
 
         <div id="info-viaje" style="font-size: 13px; color: #334155; line-height: 1.4;">
-            Arrastra el marcador azul en el mapa, escribe tu destino o haz clic en cualquier lugar.
+            Arrastra el marcador azul o busca tu destino para solicitar viaje.
         </div>
 
         <button class="btn-solicitar" id="btn-solicitar" onclick="solicitarMotoGo()">Solicitar Mototaxi en Vivo</button>
@@ -137,60 +136,24 @@
             actualizarRutaVisual();
         });
 
-        map.on('click', function(e) {
-            latPasajero = e.latlng.lat;
-            lonPasajero = e.latlng.lng;
-            marcadorPasajero.setLatLng([latPasajero, lonPasajero]);
-        });
-
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                function(position) {
-                    latPasajero = position.coords.latitude;
-                    lonPasajero = position.coords.longitude;
-                    marcadorPasajero.setLatLng([latPasajero, lonPasajero]);
-                    map.setView([latPasajero, lonPasajero], 16);
-                    document.getElementById('estado-texto').innerText = "GPS Listo";
-                },
-                function(error) {
-                    console.warn("GPS no disponible, usando manual.");
-                },
-                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-            );
-        }
-
         let routingControl = null;
 
         function actualizarRutaVisual() {
-            if (routingControl) {
-                map.removeControl(routingControl);
-            }
+            if (routingControl) map.removeControl(routingControl);
             try {
                 routingControl = L.Routing.control({
-                    waypoints: [
-                        L.latLng(latPasajero, lonPasajero),
-                        L.latLng(destinoLat, destinoLon)
-                    ],
-                    routeWhileDragging: false,
-                    addWaypoints: false,
-                    fitSelectedRoutes: true,
-                    createMarker: function() { return null; } // No duplicar marcadores
+                    waypoints: [L.latLng(latPasajero, lonPasajero), L.latLng(destinoLat, destinoLon)],
+                    routeWhileDragging: false, addWaypoints: false, fitSelectedRoutes: true,
+                    createMarker: function() { return null; }
                 }).addTo(map);
-            } catch (e) {
-                console.error("Error al trazar ruta:", e);
-            }
+            } catch (e) { console.error(e); }
         }
 
         let timeoutBusqueda = null;
-
         function buscarSugerencias(query) {
             clearTimeout(timeoutBusqueda);
             const contenedor = document.getElementById('resultados-busqueda');
-            
-            if (!query || query.length < 3) {
-                contenedor.style.display = 'none';
-                return;
-            }
+            if (!query || query.length < 3) { contenedor.style.display = 'none'; return; }
 
             timeoutBusqueda = setTimeout(() => {
                 fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=pe&limit=5`)
@@ -206,11 +169,8 @@
                                 div.onclick = () => seleccionarLugar(lugar.lat, lugar.lon, lugar.display_name);
                                 contenedor.appendChild(div);
                             });
-                        } else {
-                            contenedor.style.display = 'none';
-                        }
-                    })
-                    .catch(err => console.error("Error buscando sugerencias:", err));
+                        } else { contenedor.style.display = 'none'; }
+                    });
             }, 300);
         }
 
@@ -219,69 +179,80 @@
             destinoLon = parseFloat(lon);
             document.getElementById('destino-input').value = nombre;
             document.getElementById('resultados-busqueda').style.display = 'none';
-
             marcadorDestino.setLatLng([destinoLat, destinoLon]);
             map.setView([destinoLat, destinoLon], 15);
-            marcadorDestino.bindPopup(`<b>Destino:</b> ${nombre}`).openPopup();
-            
-            document.getElementById('estado-texto').innerText = "Destino OK";
             actualizarRutaVisual();
         }
 
+        const BACKEND_URL = "https://motogo-backend-kx9f.onrender.com";
+        let viajeIdActual = null;
+        let intervaloMonitoreoViaje = null;
         let intervaloRastreoConductor = null;
         let marcadorMototaxiEnRuta = null;
-        const BACKEND_URL = "https://motogo-backend-kx9f.onrender.com";
 
         function solicitarMotoGo() {
             const btn = document.getElementById('btn-solicitar');
             const destinoTexto = document.getElementById('destino-input').value.trim();
             
             if (marcadorPasajero) {
-                const posActual = marcadorPasajero.getLatLng();
-                latPasajero = posActual.lat;
-                lonPasajero = posActual.lng;
+                const pos = marcadorPasajero.getLatLng();
+                latPasajero = pos.lat;
+                lonPasajero = pos.lng;
             }
 
-            if (!latPasajero || !lonPasajero) {
-                alert("Por favor, selecciona tu ubicación en el mapa.");
-                return;
-            }
-
-            btn.innerText = "Buscando mototaxi cercano...";
+            btn.innerText = "Buscando mototaxi...";
             btn.disabled = true;
-            document.getElementById('estado-texto').innerText = "Procesando...";
+            document.getElementById('estado-texto').innerText = "Buscando";
 
-            const urlFinal = `${BACKEND_URL}/api/solicitar-viaje?lat=${latPasajero}&lon=${lonPasajero}&destino=${encodeURIComponent(destinoTexto ? destinoTexto : "Destino general")}`;
-
-            fetch(urlFinal, { method: 'POST' })
+            fetch(`${BACKEND_URL}/api/solicitar-viaje?lat=${latPasajero}&lon=${lonPasajero}&destino=${encodeURIComponent(destinoTexto || "Destino general")}`, { method: 'POST' })
             .then(res => res.json())
             .then(data => {
                 if (data.exito) {
-                    document.getElementById('estado-texto').innerText = "¡Enlazado!";
+                    viajeIdActual = data.viaje_id;
+                    document.getElementById('estado-texto').innerText = "Esperando Motero";
                     document.getElementById('info-viaje').innerHTML = `
                         <strong>Conductor Asignado:</strong> ${data.conductor_asignado}<br>
-                        <strong>Placa Oficial:</strong> ${data.placa}<br>
-                        <strong>Destino:</strong> ${data.destino}<br>
-                        <em>¡Tu mototaxi está en camino en tiempo real!</em><br><br>
-                        <button onclick="reiniciarBusqueda()" style="background:#dc2626; color:white; border:none; padding:8px 14px; border-radius:8px; cursor:pointer; font-size:12px; font-weight:700; width:100%;">Cancelar / Buscar otro</button>
+                        <strong>Placa:</strong> ${data.placa}<br>
+                        <em>Esperando que el conductor acepte la solicitud...</em><br><br>
+                        <button onclick="reiniciarBusqueda()" style="background:#dc2626; color:white; border:none; padding:8px 14px; border-radius:8px; cursor:pointer; font-size:12px; font-weight:700; width:100%;">Cancelar Búsqueda</button>
                     `;
-                    btn.innerText = "Viaje en Curso";
                     
-                    iniciarRastreoEnVivo(data.placa);
+                    // Monitorear si el conductor acepta o rechaza
+                    intervaloMonitoreoViaje = setInterval(() => verificarEstadoViaje(data.placa), 3000);
                 } else {
                     alert(data.mensaje);
-                    btn.innerText = "Solicitar Mototaxi en Vivo";
-                    btn.disabled = false;
-                    document.getElementById('estado-texto').innerText = "Sin unidades";
+                    resetearPasajero();
                 }
             })
             .catch(err => {
-                console.error("Error al solicitar viaje:", err);
-                alert("Error de conexión con el servidor en la nube.");
-                btn.innerText = "Solicitar Mototaxi en Vivo";
-                btn.disabled = false;
-                document.getElementById('estado-texto').innerText = "Error";
+                console.error(err);
+                alert("Error conectando con el servidor.");
+                resetearPasajero();
             });
+        }
+
+        function verificarEstadoViaje(placaConductor) {
+            if (!viajeIdActual) return;
+
+            fetch(`${BACKEND_URL}/api/verificar-estado-viaje?viaje_id=${viajeIdActual}`)
+                .then(res => res.json())
+                .then(estadoData => {
+                    if (estadoData.estado === 'ACEPTADO') {
+                        clearInterval(intervaloMonitoreoViaje);
+                        document.getElementById('estado-texto').innerText = "¡En Camino!";
+                        document.getElementById('info-viaje').innerHTML = `
+                            <strong>¡Viaje Aceptado!</strong><br>
+                            Tu mototaxi viene en camino.<br><br>
+                            <button onclick="reiniciarBusqueda()" style="background:#dc2626; color:white; border:none; padding:8px 14px; border-radius:8px; cursor:pointer; font-size:12px; font-weight:700; width:100%;">Cancelar Viaje</button>
+                        `;
+                        iniciarRastreoEnVivo(placaConductor);
+                    } else if (estadoData.estado === 'RECHAZADO') {
+                        clearInterval(intervaloMonitoreoViaje);
+                        alert("El conductor rechazó la carrera. Buscando otra unidad...");
+                        reiniciarBusqueda();
+                    }
+                })
+                .catch(err => console.error("Error verificando estado:", err));
         }
 
         function iniciarRastreoEnVivo(placaConductor) {
@@ -289,39 +260,34 @@
                 fetch(`${BACKEND_URL}/api/listar-conductores`)
                     .then(res => res.json())
                     .then(conductores => {
-                        const conductorActual = conductores.find(c => c.placa === placaConductor);
-                        if (conductorActual) {
-                            const nuevaLat = conductorActual.lat;
-                            const nuevaLon = conductorActual.lon;
+                        const c = conductores.find(cond => cond.placa === placaConductor);
+                        if (c) {
                             const motoIcon = L.divIcon({ html: '🛵', className: 'custom-moto-marker', iconSize: [32, 32] });
-
                             if (!marcadorMototaxiEnRuta) {
-                                marcadorMototaxiEnRuta = L.marker([nuevaLat, nuevaLon], { icon: motoIcon }).addTo(map)
-                                    .bindPopup(`<b>Mototaxi (${placaConductor}) en camino</b>`).openPopup();
+                                marcadorMototaxiEnRuta = L.marker([c.lat, c.lon], { icon: motoIcon }).addTo(map)
+                                    .bindPopup(`<b>Mototaxi (${placaConductor})</b>`).openPopup();
                             } else {
-                                marcadorMototaxiEnRuta.setLatLng([nuevaLat, nuevaLon]);
+                                marcadorMototaxiEnRuta.setLatLng([c.lat, c.lon]);
                             }
                         }
-                    })
-                    .catch(err => console.error("Error rastreando posición:", err));
+                    });
             }, 3000);
         }
 
         function reiniciarBusqueda() {
+            if (intervaloMonitoreoViaje) clearInterval(intervaloMonitoreoViaje);
             if (intervaloRastreoConductor) clearInterval(intervaloRastreoConductor);
-            if (marcadorMototaxiEnRuta) {
-                map.removeLayer(marcadorMototaxiEnRuta);
-                marcadorMototaxiEnRuta = null;
-            }
-            if (routingControl) {
-                map.removeControl(routingControl);
-                routingControl = null;
-            }
+            if (marcadorMototaxiEnRuta) { map.removeLayer(marcadorMototaxiEnRuta); marcadorMototaxiEnRuta = null; }
+            if (routingControl) { map.removeControl(routingControl); routingControl = null; }
             
+            viajeIdActual = null;
+            resetearPasajero();
+        }
+
+        function resetearPasajero() {
             document.getElementById('estado-texto').innerText = "Seleccionando";
             document.getElementById('unidades-cerca').innerText = "Radar Activo";
-            document.getElementById('info-viaje').innerHTML = "Arrastra el marcador azul en el mapa, escribe tu destino o haz clic en cualquier lugar.";
-            
+            document.getElementById('info-viaje').innerHTML = "Arrastra el marcador azul o busca tu destino para solicitar viaje.";
             const btn = document.getElementById('btn-solicitar');
             btn.innerText = "Solicitar Mototaxi en Vivo";
             btn.disabled = false;
