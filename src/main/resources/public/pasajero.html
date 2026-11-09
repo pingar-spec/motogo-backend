@@ -31,12 +31,24 @@
         .stat-value { font-size: 15px; font-weight: 700; color: #0f172a; }
         .stat-label { font-size: 11px; color: #64748b; font-weight: 500; }
 
-        .input-group { display: flex; flex-direction: column; gap: 4px; }
+        .input-group { display: flex; flex-direction: column; gap: 4px; position: relative; }
         .input-group label { font-size: 11px; font-weight: 600; color: #64748b; }
         .input-field {
             padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px;
-            font-size: 13px; outline: none; color: #0f172a;
+            font-size: 13px; outline: none; color: #0f172a; width: 100%;
         }
+
+        /* Lista desplegable para resultados detallados */
+        #resultados-busqueda {
+            position: absolute; top: 100%; left: 0; right: 0; background: white;
+            border: 1px solid #cbd5e1; border-radius: 8px; max-height: 180px;
+            overflow-y: auto; z-index: 2000; box-shadow: 0 4px 12px rgba(0,0,0,0.15); display: none;
+        }
+        .resultado-item {
+            padding: 10px 12px; font-size: 12px; color: #334155; cursor: pointer;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .resultado-item:hover { background: #f8fafc; color: #1e40af; font-weight: 600; }
 
         .btn-solicitar {
             background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
@@ -45,12 +57,6 @@
             box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4); text-align: center;
         }
         .btn-solicitar:disabled { background: #94a3b8; cursor: not-allowed; box-shadow: none; }
-        
-        .search-container { display: flex; gap: 8px; }
-        .btn-buscar {
-            background: #334155; color: white; border: none; padding: 0 14px;
-            border-radius: 8px; font-weight: 600; font-size: 12px; cursor: pointer;
-        }
 
         .custom-moto-marker { font-size: 28px; text-align: center; }
     </style>
@@ -79,10 +85,8 @@
 
         <div class="input-group">
             <label>Buscar Destino (Calles, Distritos, Departamentos)</label>
-            <div class="search-container">
-                <input type="text" id="destino-input" class="input-field" style="flex:1;" value="Plaza Vea - El Agustino" placeholder="Ej. Av. Arequipa, Lima...">
-                <button class="btn-buscar" onclick="buscarLugar()">Buscar</button>
-            </div>
+            <input type="text" id="destino-input" class="input-field" placeholder="Escribe cualquier lugar..." oninput="buscarSugerencias(this.value)">
+            <div id="resultados-busqueda"></div>
         </div>
 
         <div id="info-viaje" style="font-size: 13px; color: #334155; line-height: 1.4;">
@@ -151,8 +155,8 @@
                 routingControl = L.Routing.control({
                     waypoints: [
                         L.latLng(latPasajero, lonPasajero),
-                        L.latLng(destinoLat, destinoLon)],
-    
+                        L.latLng(destinoLat, destinoLon)
+                    ],
                     routeWhileDragging: false,
                     language: 'es',
                     show: true,
@@ -164,36 +168,52 @@
             }
         }
 
-        // Función para buscar cualquier lugar, calle, distrito o departamento usando Nominatim
-        function buscarLugar() {
-            const query = document.getElementById('destino-input').value.trim();
-            if (!query) return;
+        let timeoutBusqueda = null;
 
-            document.getElementById('estado-texto').innerText = "Buscando...";
-            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`)
-                .then(res => res.json())
-                .then(data => {
-                    if (data && data.length > 0) {
-                        const lugar = data[0];
-                        destinoLat = parseFloat(lugar.lat);
-                        destinoLon = parseFloat(lugar.lon);
-                        
-                        marcadorDestino.setLatLng([destinoLat, destinoLon]);
-                        map.setView([destinoLat, destinoLon], 15);
-                        marcadorDestino.bindPopup(`<b>Destino:</b> ${lugar.display_name}`).openPopup();
-                        
-                        document.getElementById('estado-texto').innerText = "Destino OK";
-                        actualizarRutaVisual();
-                    } else {
-                        alert("No se encontró el lugar especificado. Intenta con mayor detalle.");
-                        document.getElementById('estado-texto').innerText = "No hallado";
-                    }
-                })
-                .catch(err => {
-                    console.error("Error en geocodificación:", err);
-                    alert("Error buscando el lugar.");
-                    document.getElementById('estado-texto').innerText = "Error";
-                });
+        // Buscador interactivo en tiempo real con lista desplegable de resultados relacionados
+        function buscarSugerencias(query) {
+            clearTimeout(timeoutBusqueda);
+            const contenedor = document.getElementById('resultados-busqueda');
+            
+            if (!query || query.length < 3) {
+                contenedor.style.display = 'none';
+                return;
+            }
+
+            timeoutBusqueda = setTimeout(() => {
+                fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=pe&limit=5`)
+                    .then(res => res.json())
+                    .then(data => {
+                        contenedor.innerHTML = '';
+                        if (data && data.length > 0) {
+                            contenedor.style.display = 'block';
+                            data.forEach(lugar => {
+                                const div = document.createElement('div');
+                                div.className = 'resultado-item';
+                                div.innerText = lugar.display_name;
+                                div.onclick = () => seleccionarLugar(lugar.lat, lugar.lon, lugar.display_name);
+                                contenedor.appendChild(div);
+                            });
+                        } else {
+                            contenedor.style.display = 'none';
+                        }
+                    })
+                    .catch(err => console.error("Error buscando sugerencias:", err));
+            }, 3000);
+        }
+
+        function seleccionarLugar(lat, lon, nombre) {
+            destinoLat = parseFloat(lat);
+            destinoLon = parseFloat(lon);
+            document.getElementById('destino-input').value = nombre;
+            document.getElementById('resultados-busqueda').style.display = 'none';
+
+            marcadorDestino.setLatLng([destinoLat, destinoLon]);
+            map.setView([destinoLat, destinoLon], 15);
+            marcadorDestino.bindPopup(`<b>Destino:</b> ${nombre}`).openPopup();
+            
+            document.getElementById('estado-texto').innerText = "Destino OK";
+            actualizarRutaVisual();
         }
 
         let intervaloRastreoConductor = null;
@@ -204,6 +224,15 @@
             const btn = document.getElementById('btn-solicitar');
             const destinoTexto = document.getElementById('destino-input').value.trim();
             
+            const posActual = marcadorPasajero.getLatLng();
+            latPasajero = posActual.lat;
+            lonPasajero = posActual.lng;
+
+            if (!latPasajero || !lonPasajero) {
+                alert("Por favor, selecciona tu ubicación en el mapa.");
+                return;
+            }
+
             btn.innerText = "Buscando mototaxi cercano...";
             btn.disabled = true;
             document.getElementById('estado-texto').innerText = "Procesando...";
@@ -229,8 +258,6 @@
                         <em>¡Tu mototaxi está en camino en tiempo real!</em>
                     `;
                     btn.innerText = "Viaje en Curso";
-
-                    // Iniciar rastreo en vivo de la moto del celular
                     iniciarRastreoEnVivo(data.placa);
                 } else {
                     alert(data.mensaje);
