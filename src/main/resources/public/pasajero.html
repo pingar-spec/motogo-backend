@@ -258,15 +258,11 @@
             btn.disabled = true;
             document.getElementById('estado-texto').innerText = "Procesando...";
 
-            const formData = new URLSearchParams();
-            formData.append('lat', latPasajero);
-            formData.append('lon', lonPasajero);
-            formData.append('destino', destinoTexto ? destinoTexto : "Destino general");
+            // Enviar coordenadas y destino por parámetros de URL (Query Parameters)
+            const urlFinal = `${BACKEND_URL}/api/solicitar-viaje?lat=${latPasajero}&lon=${lonPasajero}&destino=${encodeURIComponent(destinoTexto ? destinoTexto : "Destino general")}`;
 
-            fetch(`${BACKEND_URL}/api/solicitar-viaje`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: formData
+            fetch(urlFinal, {
+                method: 'POST'
             })
             .then(res => res.json())
             .then(data => {
