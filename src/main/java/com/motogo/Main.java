@@ -37,11 +37,13 @@ public class Main {
 
         System.out.println("¡Servidor MotoGo Backend Activo en el puerto " + puertoApp + "!");
 
-        // 1. PASAJERO: Solicitar Viaje y Asignar Conductor
+        // 1. PASAJERO: Solicitar Viaje y Asignar Conductor (con coordenadas de destino)
         app.post("/api/solicitar-viaje", ctx -> {
             String latStr = ctx.queryParam("lat");
             String lonStr = ctx.queryParam("lon");
             String destino = ctx.queryParam("destino");
+            String destLatStr = ctx.queryParam("destinoLat");
+            String destLonStr = ctx.queryParam("destinoLon");
 
             if (latStr == null || lonStr == null) {
                 ctx.status(400).json(Map.of("exito", false, "mensaje", "Faltan coordenadas GPS del pasajero."));
@@ -50,6 +52,8 @@ public class Main {
 
             double pasajeroLat = Double.parseDouble(latStr);
             double pasajeroLon = Double.parseDouble(lonStr);
+            double destLat = destLatStr != null ? Double.parseDouble(destLatStr) : pasajeroLat + 0.01;
+            double destLon = destLonStr != null ? Double.parseDouble(destLonStr) : pasajeroLon + 0.01;
 
             registrarSolicitudDemanda(pasajeroLat, pasajeroLon, destino);
             Map<String, Object> conductorAsignado = buscarConductorMasCercano(pasajeroLat, pasajeroLon);
@@ -60,7 +64,7 @@ public class Main {
                 String placaConductor = (String) conductorAsignado.get("placa");
                 double distancia = (double) conductorAsignado.get("distancia");
 
-                int viajeId = crearViajePendiente(conductorId, pasajeroLat, pasajeroLon, destino);
+                int viajeId = crearViajePendiente(conductorId, pasajeroLat, pasajeroLon, destino, destLat, destLon);
 
                 System.out.println("✅ ¡Viaje enlazado! Conductor: " + nombreConductor + " (" + placaConductor + ")");
                 ctx.json(Map.of(
@@ -116,10 +120,10 @@ public class Main {
             }
 
             String urlDb = "jdbc:mysql://" + HOST + ":" + PORT_DB + "/motogo_db?sslMode=VERIFY_IDENTITY";
-            String query = "SELECT v.id, v.latitud, v.longitud, v.destino, 'Piero Pasajero' as pasajero FROM viajes v " +
+            String query = "SELECT v.id, v.latitud, v.longitud, v.destino, v.lat_destino, v.lon_destino, 'Piero Pasajero' as pasajero FROM viajes v " +
                            "JOIN conductores c ON v.conductor_id = c.id " +
                            "WHERE c.placa = ? AND v.estado = 'PENDIENTE' " +
-                           "AND TIMESTAMPDIFF(SECOND, v.creado_en, NOW()) <= 45 LIMIT 1";
+                           "AND TIMESTAMPDIFF(SECOND, v.creado_en, NOW()) <= 30 LIMIT 1";
 
             try (Connection conn = DriverManager.getConnection(urlDb, USER, PASSWORD);
                  PreparedStatement pstmt = conn.prepareStatement(query)) {
@@ -131,6 +135,8 @@ public class Main {
                             "viaje_id", rs.getInt("id"),
                             "latPasajero", rs.getDouble("latitud"),
                             "lonPasajero", rs.getDouble("longitud"),
+                            "latDestino", rs.getDouble("lat_destino"),
+                            "lonDestino", rs.getDouble("lon_destino"),
                             "destino", rs.getString("destino"),
                             "pasajero", rs.getString("pasajero")
                         ));
@@ -235,7 +241,7 @@ public class Main {
             stmt.executeUpdate("CREATE TABLE IF NOT EXISTS ciudades (id INT AUTO_INCREMENT PRIMARY KEY, nombre VARCHAR(100), departamento VARCHAR(100));");
             stmt.executeUpdate("CREATE TABLE IF NOT EXISTS conductores (id INT AUTO_INCREMENT PRIMARY KEY, nombre VARCHAR(150), placa VARCHAR(20) UNIQUE, ciudad_id INT, latitud DECIMAL(10, 8), longitud DECIMAL(11, 8), disponible BOOLEAN DEFAULT TRUE);");
             stmt.executeUpdate("CREATE TABLE IF NOT EXISTS solicitudes (id INT AUTO_INCREMENT PRIMARY KEY, latitud DECIMAL(10, 8), longitud DECIMAL(11, 8), destino VARCHAR(255), fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP);");
-            stmt.executeUpdate("CREATE TABLE IF NOT EXISTS viajes (id INT AUTO_INCREMENT PRIMARY KEY, conductor_id INT, latitud DECIMAL(10, 8), longitud DECIMAL(11, 8), destino VARCHAR(255), estado VARCHAR(30) DEFAULT 'PENDIENTE', creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP);");
+            stmt.executeUpdate("CREATE TABLE IF NOT EXISTS viajes (id INT AUTO_INCREMENT PRIMARY KEY, conductor_id INT, latitud DECIMAL(10, 8), longitud DECIMAL(11, 8), destino VARCHAR(255), lat_destino DECIMAL(10, 8), lon_destino DECIMAL(11, 8), estado VARCHAR(30) DEFAULT 'PENDIENTE', creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP);");
         } catch (Exception e) {
             System.err.println("Error inicializando BD: " + e.getMessage());
         }
@@ -253,15 +259,17 @@ public class Main {
         } catch (Exception ignored) {}
     }
 
-    private static int crearViajePendiente(int conductorId, double lat, double lon, String destino) {
+    private static int crearViajePendiente(int conductorId, double lat, double lon, String destino, double destLat, double destLon) {
         String urlDb = "jdbc:mysql://" + HOST + ":" + PORT_DB + "/motogo_db?sslMode=VERIFY_IDENTITY";
-        String query = "INSERT INTO viajes (conductor_id, latitud, longitud, destino, estado) VALUES (?, ?, ?, ?, 'PENDIENTE')";
+        String query = "INSERT INTO viajes (conductor_id, latitud, longitud, destino, lat_destino, lon_destino, estado) VALUES (?, ?, ?, ?, ?, ?, 'PENDIENTE')";
         try (Connection conn = DriverManager.getConnection(urlDb, USER, PASSWORD);
              PreparedStatement pstmt = conn.prepareStatement(query, Statement.RETURN_GENERATED_KEYS)) {
             pstmt.setInt(1, conductorId);
             pstmt.setDouble(2, lat);
             pstmt.setDouble(3, lon);
             pstmt.setString(4, destino);
+            pstmt.setDouble(5, destLat);
+            pstmt.setDouble(6, destLon);
             pstmt.executeUpdate();
             try (ResultSet rs = pstmt.getGeneratedKeys()) {
                 if (rs.next()) return rs.getInt(1);

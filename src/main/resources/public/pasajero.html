@@ -13,7 +13,6 @@
 
         #map { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
 
-        /* Ocultar la caja de texto flotante de Leaflet */
         .leaflet-routing-container { display: none !important; }
 
         .passenger-panel {
@@ -97,9 +96,8 @@
         <button class="btn-solicitar" id="btn-solicitar" onclick="solicitarMotoGo()">Solicitar Mototaxi en Vivo</button>
     </div>
 
-    <!-- Leaflet JS y Routing Machine -->
+    <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
     <script>
         const map = L.map('map', { zoomControl: false }).setView([-12.0498, -77.0019], 15);
         L.control.zoom({ position: 'bottomright' }).addTo(map);
@@ -133,21 +131,7 @@
             const pos = marcadorDestino.getLatLng();
             destinoLat = pos.lat;
             destinoLon = pos.lng;
-            actualizarRutaVisual();
         });
-
-        let routingControl = null;
-
-        function actualizarRutaVisual() {
-            if (routingControl) map.removeControl(routingControl);
-            try {
-                routingControl = L.Routing.control({
-                    waypoints: [L.latLng(latPasajero, lonPasajero), L.latLng(destinoLat, destinoLon)],
-                    routeWhileDragging: false, addWaypoints: false, fitSelectedRoutes: true,
-                    createMarker: function() { return null; }
-                }).addTo(map);
-            } catch (e) { console.error(e); }
-        }
 
         let timeoutBusqueda = null;
         function buscarSugerencias(query) {
@@ -181,7 +165,6 @@
             document.getElementById('resultados-busqueda').style.display = 'none';
             marcadorDestino.setLatLng([destinoLat, destinoLon]);
             map.setView([destinoLat, destinoLon], 15);
-            actualizarRutaVisual();
         }
 
         const BACKEND_URL = "https://motogo-backend-kx9f.onrender.com";
@@ -204,7 +187,7 @@
             btn.disabled = true;
             document.getElementById('estado-texto').innerText = "Buscando";
 
-            fetch(`${BACKEND_URL}/api/solicitar-viaje?lat=${latPasajero}&lon=${lonPasajero}&destino=${encodeURIComponent(destinoTexto || "Destino general")}`, { method: 'POST' })
+            fetch(`${BACKEND_URL}/api/solicitar-viaje?lat=${latPasajero}&lon=${lonPasajero}&destino=${encodeURIComponent(destinoTexto || "Destino general")}&destinoLat=${destinoLat}&destinoLon=${destinoLon}`, { method: 'POST' })
             .then(res => res.json())
             .then(data => {
                 if (data.exito) {
@@ -217,7 +200,6 @@
                         <button onclick="reiniciarBusqueda()" style="background:#dc2626; color:white; border:none; padding:8px 14px; border-radius:8px; cursor:pointer; font-size:12px; font-weight:700; width:100%;">Cancelar Búsqueda</button>
                     `;
                     
-                    // Monitorear si el conductor acepta o rechaza
                     intervaloMonitoreoViaje = setInterval(() => verificarEstadoViaje(data.placa), 3000);
                 } else {
                     alert(data.mensaje);
@@ -242,9 +224,10 @@
                         document.getElementById('estado-texto').innerText = "¡En Camino!";
                         document.getElementById('info-viaje').innerHTML = `
                             <strong>¡Viaje Aceptado!</strong><br>
-                            Tu mototaxi viene en camino.<br><br>
+                            Tu mototaxi viene en camino a recogerte.<br><br>
                             <button onclick="reiniciarBusqueda()" style="background:#dc2626; color:white; border:none; padding:8px 14px; border-radius:8px; cursor:pointer; font-size:12px; font-weight:700; width:100%;">Cancelar Viaje</button>
                         `;
+                        if (marcadorDestino) { map.removeLayer(marcadorDestino); }
                         iniciarRastreoEnVivo(placaConductor);
                     } else if (estadoData.estado === 'RECHAZADO') {
                         clearInterval(intervaloMonitoreoViaje);
@@ -265,7 +248,7 @@
                             const motoIcon = L.divIcon({ html: '🛵', className: 'custom-moto-marker', iconSize: [32, 32] });
                             if (!marcadorMototaxiEnRuta) {
                                 marcadorMototaxiEnRuta = L.marker([c.lat, c.lon], { icon: motoIcon }).addTo(map)
-                                    .bindPopup(`<b>Mototaxi (${placaConductor})</b>`).openPopup();
+                                    .bindPopup(`<b>Tu Mototaxi (${placaConductor})</b>`).openPopup();
                             } else {
                                 marcadorMototaxiEnRuta.setLatLng([c.lat, c.lon]);
                             }
@@ -278,10 +261,10 @@
             if (intervaloMonitoreoViaje) clearInterval(intervaloMonitoreoViaje);
             if (intervaloRastreoConductor) clearInterval(intervaloRastreoConductor);
             if (marcadorMototaxiEnRuta) { map.removeLayer(marcadorMototaxiEnRuta); marcadorMototaxiEnRuta = null; }
-            if (routingControl) { map.removeControl(routingControl); routingControl = null; }
             
             viajeIdActual = null;
             resetearPasajero();
+            location.reload();
         }
 
         function resetearPasajero() {
