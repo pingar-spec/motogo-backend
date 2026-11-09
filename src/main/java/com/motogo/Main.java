@@ -100,7 +100,6 @@ public class Main {
                 pstmt.setDouble(3, Double.parseDouble(latStr));
                 pstmt.setDouble(4, Double.parseDouble(lonStr));
                 pstmt.executeUpdate();
-                System.out.println("📡 GPS Recibido y Guardado -> Conductor: " + nombre + " [" + placa + "]");
                 ctx.json(Map.of("exito", true));
             } catch (Exception e) {
                 System.err.println("❌ Error al guardar conductor: " + e.getMessage());
@@ -108,19 +107,19 @@ public class Main {
             }
         });
 
-        // 3. CONDUCTOR: Verificar si tiene carreras pendientes
+        // 3. CONDUCTOR: Verificar si tiene carreras pendientes (Sincronizado)
         app.get("/api/verificar-viaje-conductor", ctx -> {
             String placa = ctx.queryParam("placa");
             if (placa == null) {
-                ctx.status(400).json(Map.of("tiene_viaje", false));
+                ctx.status(400).json(Map.of("en_espera", false));
                 return;
             }
 
             String urlDb = "jdbc:mysql://" + HOST + ":" + PORT_DB + "/motogo_db?sslMode=VERIFY_IDENTITY";
-            String query = "SELECT v.id, v.latitud, v.longitud, v.destino FROM viajes v " +
+            String query = "SELECT v.id, v.latitud, v.longitud, v.destino, 'Pasajero' as pasajero FROM viajes v " +
                            "JOIN conductores c ON v.conductor_id = c.id " +
                            "WHERE c.placa = ? AND v.estado = 'PENDIENTE' " +
-                           "AND TIMESTAMPDIFF(SECOND, v.creado_en, NOW()) <= 15 LIMIT 1";
+                           "AND TIMESTAMPDIFF(SECOND, v.creado_en, NOW()) <= 45 LIMIT 1";
 
             try (Connection conn = DriverManager.getConnection(urlDb, USER, PASSWORD);
                  PreparedStatement pstmt = conn.prepareStatement(query)) {
@@ -128,20 +127,21 @@ public class Main {
                 try (ResultSet rs = pstmt.executeQuery()) {
                     if (rs.next()) {
                         ctx.json(Map.of(
-                            "tiene_viaje", true,
+                            "en_espera", true,
                             "viaje_id", rs.getInt("id"),
-                            "lat", rs.getDouble("latitud"),
-                            "lon", rs.getDouble("longitud"),
-                            "destino", rs.getString("destino")
+                            "latPasajero", rs.getDouble("latitud"),
+                            "lonPasajero", rs.getDouble("longitud"),
+                            "destino", rs.getString("destino"),
+                            "pasajero", rs.getString("pasajero")
                         ));
                         return;
                     }
                 }
             } catch (Exception e) {
-                System.err.println("Error al verificar viaje: " + e.getMessage());
+                System.err.println("Error al verificar viaje conductor: " + e.getMessage());
             }
 
-            ctx.json(Map.of("tiene_viaje", false));
+            ctx.json(Map.of("en_espera", false));
         });
 
         // 4. CONDUCTOR: Aceptar o Rechazar la carrera
@@ -168,32 +168,7 @@ public class Main {
             }
         });
 
-        // 5. ZONAS DE CALOR
-        app.get("/api/zonas-calor", ctx -> {
-            String urlDb = "jdbc:mysql://" + HOST + ":" + PORT_DB + "/motogo_db?sslMode=VERIFY_IDENTITY";
-            StringBuilder json = new StringBuilder("[");
-            String query = "SELECT latitud, longitud FROM solicitudes ORDER BY fecha DESC LIMIT 50";
-
-            try (Connection conn = DriverManager.getConnection(urlDb, USER, PASSWORD);
-                 Statement stmt = conn.createStatement();
-                 ResultSet rs = stmt.executeQuery(query)) {
-
-                boolean primero = true;
-                while (rs.next()) {
-                    if (!primero) json.append(",");
-                    json.append("{\"lat\":").append(rs.getDouble("latitud"))
-                        .append(",\"lon\":").append(rs.getDouble("longitud")).append("}");
-                    primero = false;
-                }
-            } catch (Exception e) {
-                System.err.println("Error zonas de calor: " + e.getMessage());
-            }
-            json.append("]");
-            ctx.contentType("application/json");
-            ctx.result(json.toString());
-        });
-
-        // 6. DIAGNÓSTICO: Listar conductores
+        // 5. DIAGNÓSTICO: Listar conductores
         app.get("/api/listar-conductores", ctx -> {
             String urlDb = "jdbc:mysql://" + HOST + ":" + PORT_DB + "/motogo_db?sslMode=VERIFY_IDENTITY";
             StringBuilder json = new StringBuilder("[");

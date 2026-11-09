@@ -150,7 +150,7 @@
                 document.getElementById('estado-conexion').innerText = "Conectado";
                 document.getElementById('estado-conexion').style.color = "#16a34a";
                 
-                // Consultar solicitudes cada 3 segundos
+                // Consultar solicitudes cada 3 segundos apuntando al endpoint sincronizado en Java
                 intervaloVerificarViaje = setInterval(verificarSolicitudesViaje, 3000);
 
             } else {
@@ -166,14 +166,13 @@
         }
 
         function enviarPosicionAlServidor(lat, lon) {
-            fetch(`${BACKEND_URL}/api/actualizar-conductor`, {
+            fetch(`${BACKEND_URL}/api/registrar-conductor`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ nombre: nombreConductor, placa: placaConductor, lat: lat, lon: lon })
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `nombre=${encodeURIComponent(nombreConductor)}&placa=${encodeURIComponent(placaConductor)}&lat=${lat}&lon=${lon}`
             }).catch(err => console.error("Error enviando posición:", err));
         }
 
-        // Consultar si hay una solicitud entrante
         function verificarSolicitudesViaje() {
             fetch(`${BACKEND_URL}/api/verificar-viaje-conductor?placa=${placaConductor}`)
                 .then(res => res.json())
@@ -186,7 +185,6 @@
                 .catch(err => console.error("Error verificando viaje:", err));
         }
 
-        // Mostrar tarjeta con botones Aceptar / Rechazar
         function mostrarAlertaSolicitud(viaje) {
             document.getElementById('info-conductor').innerHTML = `
                 <strong style="color: #2563eb;">¡Nueva Solicitud de Pasajero!</strong><br>
@@ -201,26 +199,28 @@
 
         function aceptarViaje() {
             if (!viajePendienteActual) return;
-
             const viaje = viajePendienteActual;
             
-            // Enviar confirmación al backend
-            fetch(`${BACKEND_URL}/api/aceptar-viaje?placa=${placaConductor}`, { method: 'POST' })
-                .catch(err => console.error("Error al aceptar viaje:", err));
+            fetch(`${BACKEND_URL}/api/responder-viaje`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `viaje_id=${viaje.viaje_id}&respuesta=ACEPTADO`
+            }).catch(err => console.error("Error al aceptar viaje:", err));
 
-            // Dibujar las rutas diferenciadas en el mapa del conductor
             trazarRutasNavegacion(viaje.latPasajero, viaje.lonPasajero, viaje.latDestino, viaje.lonDestino, viaje.pasajero);
         }
 
         function rechazarViaje() {
-            viajePendienteActual = null;
-            
-            // Limpiar rutas si existían
-            limpiarRutasMapa();
+            if (viajePendienteActual) {
+                fetch(`${BACKEND_URL}/api/responder-viaje`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `viaje_id=${viajePendienteActual.viaje_id}&respuesta=RECHAZADO`
+                }).catch(err => console.error("Error al rechazar viaje:", err));
+            }
 
-            // Notificar al backend que se rechazó para liberar al pasajero
-            fetch(`${BACKEND_URL}/api/rechazar-viaje?placa=${placaConductor}`, { method: 'POST' })
-                .catch(err => console.error("Error al rechazar viaje:", err));
+            viajePendienteActual = null;
+            limpiarRutasMapa();
 
             document.getElementById('info-conductor').innerHTML = `
                 <strong>Conductor:</strong> ${nombreConductor}<br>
@@ -229,15 +229,12 @@
             `;
         }
 
-        // Trazar Ruta 1 (Azul: Moto -> Pasajero) y Ruta 2 (Verde: Pasajero -> Destino)
         function trazarRutasNavegacion(latP, lonP, latD, lonD, nombrePasajero) {
             limpiarRutasMapa();
 
-            // Marcador de recogida
             marcadorRecogidaPasajero = L.marker([latP, lonP]).addTo(map)
                 .bindPopup(`<b>Recoger a:</b> ${nombrePasajero}`).openPopup();
 
-            // Marcador de destino final (Rojo)
             const redIcon = L.icon({
                 iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
                 shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
