@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MotoGo - Panel Pasajero Ruta Real</title>
+    <title>MotoGo - Panel Pasajero</title>
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
@@ -45,6 +45,12 @@
             box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4); text-align: center;
         }
         .btn-solicitar:disabled { background: #94a3b8; cursor: not-allowed; box-shadow: none; }
+        
+        .search-container { display: flex; gap: 8px; }
+        .btn-buscar {
+            background: #334155; color: white; border: none; padding: 0 14px;
+            border-radius: 8px; font-weight: 600; font-size: 12px; cursor: pointer;
+        }
 
         .custom-moto-marker { font-size: 28px; text-align: center; }
     </style>
@@ -72,12 +78,15 @@
         </div>
 
         <div class="input-group">
-            <label>Destino Seleccionado</label>
-            <input type="text" id="destino-input" class="input-field" value="Plaza Vea - El Agustino" placeholder="¿A dónde vas?">
+            <label>Buscar Destino (Calles, Distritos, Departamentos)</label>
+            <div class="search-container">
+                <input type="text" id="destino-input" class="input-field" style="flex:1;" value="Plaza Vea - El Agustino" placeholder="Ej. Av. Arequipa, Lima...">
+                <button class="btn-buscar" onclick="buscarLugar()">Buscar</button>
+            </div>
         </div>
 
         <div id="info-viaje" style="font-size: 13px; color: #334155; line-height: 1.4;">
-            Arrastra el marcador azul en el mapa o haz clic para definir tu ubicación de recogida.
+            Arrastra el marcador azul en el mapa, escribe tu destino o haz clic en cualquier lugar.
         </div>
 
         <button class="btn-solicitar" id="btn-solicitar" onclick="solicitarMotoGo()">Solicitar Mototaxi en Vivo</button>
@@ -88,7 +97,7 @@
     <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
     <script>
         // Inicializar mapa centrado en Lima / El Agustino
-        const map = L.map('map', { zoomControl: false }).setView([-12.0464, -77.0428], 14);
+        const map = L.map('map', { zoomControl: false }).setView([-12.0498, -77.0019], 15);
         L.control.zoom({ position: 'bottomright' }).addTo(map);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -96,10 +105,12 @@
             attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
 
-        let latPasajero = -12.0464;
-        let lonPasajero = -77.0428;
+        let latPasajero = -12.0498;
+        let lonPasajero = -77.0019;
+        let destinoLat = -12.0464;
+        let destinoLon = -77.0428;
 
-        // Marcador del Pasajero (Permite arrastrar para elegir ubicación exacta)
+        // Marcador del Pasajero (Recogida)
         let marcadorPasajero = L.marker([latPasajero, lonPasajero], { draggable: true }).addTo(map)
             .bindPopup("<b>Tu ubicación de recogida</b>").openPopup();
 
@@ -107,6 +118,20 @@
             const pos = marcadorPasajero.getLatLng();
             latPasajero = pos.lat;
             lonPasajero = pos.lng;
+        });
+
+        // Marcador de Destino
+        let marcadorDestino = L.marker([destinoLat, destinoLon], { draggable: true, icon: L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+            iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+        }) }).addTo(map).bindPopup("<b>Destino</b>");
+
+        marcadorDestino.on('dragend', function(e) {
+            const pos = marcadorDestino.getLatLng();
+            destinoLat = pos.lat;
+            destinoLon = pos.lng;
+            actualizarRutaVisual();
         });
 
         // Evento al hacer clic en el mapa para mover la recogida
@@ -117,15 +142,67 @@
         });
 
         let routingControl = null;
+
+        function actualizarRutaVisual() {
+            if (routingControl) {
+                map.removeControl(routingControl);
+            }
+            try {
+                routingControl = L.Routing.control({
+                    waypoints: [
+                        L.latLng(latPasajero, lonPasajero),
+                        L.latLng(destinoLat, destinoLon)],
+    
+                    routeWhileDragging: false,
+                    language: 'es',
+                    show: true,
+                    addWaypoints: false,
+                    fitSelectedRoutes: true
+                }).addTo(map);
+            } catch (e) {
+                console.error("Error al trazar ruta:", e);
+            }
+        }
+
+        // Función para buscar cualquier lugar, calle, distrito o departamento usando Nominatim
+        function buscarLugar() {
+            const query = document.getElementById('destino-input').value.trim();
+            if (!query) return;
+
+            document.getElementById('estado-texto').innerText = "Buscando...";
+            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data && data.length > 0) {
+                        const lugar = data[0];
+                        destinoLat = parseFloat(lugar.lat);
+                        destinoLon = parseFloat(lugar.lon);
+                        
+                        marcadorDestino.setLatLng([destinoLat, destinoLon]);
+                        map.setView([destinoLat, destinoLon], 15);
+                        marcadorDestino.bindPopup(`<b>Destino:</b> ${lugar.display_name}`).openPopup();
+                        
+                        document.getElementById('estado-texto').innerText = "Destino OK";
+                        actualizarRutaVisual();
+                    } else {
+                        alert("No se encontró el lugar especificado. Intenta con mayor detalle.");
+                        document.getElementById('estado-texto').innerText = "No hallado";
+                    }
+                })
+                .catch(err => {
+                    console.error("Error en geocodificación:", err);
+                    alert("Error buscando el lugar.");
+                    document.getElementById('estado-texto').innerText = "Error";
+                });
+        }
+
         let intervaloRastreoConductor = null;
         let marcadorMototaxiEnRuta = null;
-
-        // Enlace oficial de tu backend en Render
         const BACKEND_URL = "https://motogo-backend-kx9f.onrender.com";
 
         function solicitarMotoGo() {
             const btn = document.getElementById('btn-solicitar');
-            const destino = document.getElementById('destino-input').value.trim();
+            const destinoTexto = document.getElementById('destino-input').value.trim();
             
             btn.innerText = "Buscando mototaxi cercano...";
             btn.disabled = true;
@@ -134,7 +211,7 @@
             const formData = new URLSearchParams();
             formData.append('lat', latPasajero);
             formData.append('lon', lonPasajero);
-            formData.append('destino', destino);
+            formData.append('destino', destinoTexto);
 
             fetch(`${BACKEND_URL}/api/solicitar-viaje`, {
                 method: 'POST',
@@ -153,7 +230,7 @@
                     `;
                     btn.innerText = "Viaje en Curso";
 
-                    // Iniciar el rastreo en vivo de la moto del celular en este mapa
+                    // Iniciar rastreo en vivo de la moto del celular
                     iniciarRastreoEnVivo(data.placa);
                 } else {
                     alert(data.mensaje);
@@ -172,7 +249,6 @@
         }
 
         function iniciarRastreoEnVivo(placaConductor) {
-            // Consultar cada 3 segundos la posición exacta del celular del conductor en la BD de TiDB Cloud
             intervaloRastreoConductor = setInterval(() => {
                 fetch(`${BACKEND_URL}/api/listar-conductores`)
                     .then(res => res.json())
@@ -187,7 +263,6 @@
                                 marcadorMototaxiEnRuta = L.marker([nuevaLat, nuevaLon], { icon: motoIcon }).addTo(map)
                                     .bindPopup(`<b>Mototaxi (${placaConductor}) en camino</b>`).openPopup();
                             } else {
-                                // Actualiza la posición de la moto suavemente sin recargar la página
                                 marcadorMototaxiEnRuta.setLatLng([nuevaLat, nuevaLon]);
                             }
                         }
