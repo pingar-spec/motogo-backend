@@ -175,7 +175,7 @@
 
         // Consultar si hay una solicitud entrante
         function verificarSolicitudesViaje() {
-            fetch(`${BACKEND_URL}/api/verificar-viaje?placa=${placaConductor}`)
+            fetch(`${BACKEND_URL}/api/verificar-viaje-conductor?placa=${placaConductor}`)
                 .then(res => res.json())
                 .then(viaje => {
                     if (viaje && viaje.en_espera && !viajePendienteActual) {
