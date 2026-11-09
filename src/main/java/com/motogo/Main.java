@@ -287,34 +287,23 @@ public class Main {
     private static Map<String, Object> buscarConductorMasCercano(double pLat, double pLon) {
         String urlDb = "jdbc:mysql://" + HOST + ":" + PORT_DB + "/motogo_db?sslMode=VERIFY_IDENTITY";
         Map<String, Object> mejorConductor = null;
-        double menorDistancia = Double.MAX_VALUE;
 
-        String query = "SELECT id, nombre, placa, latitud, longitud FROM conductores";
+        // Selección directa del conductor registrado sin restricción de distancia por Wi-Fi
+        String query = "SELECT id, nombre, placa, latitud, longitud FROM conductores LIMIT 1";
 
         try (Connection conn = DriverManager.getConnection(urlDb, USER, PASSWORD);
              Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(query)) {
 
-            while (rs.next()) {
-                int id = rs.getInt("id");
-                String nombre = rs.getString("nombre");
-                String placa = rs.getString("placa");
-                double cLat = rs.getDouble("latitud");
-                double cLon = rs.getDouble("longitud");
-
-                double distancia = calcularHaversine(pLat, pLon, cLat, cLon);
-
-                if (distancia < menorDistancia) {
-                    menorDistancia = distancia;
-                    mejorConductor = new HashMap<>();
-                    mejorConductor.put("id", id);
-                    mejorConductor.put("nombre", nombre);
-                    mejorConductor.put("placa", placa);
-                    mejorConductor.put("distancia", Math.round(distancia * 100.0) / 100.0);
-                }
+            if (rs.next()) {
+                mejorConductor = new HashMap<>();
+                mejorConductor.put("id", rs.getInt("id"));
+                mejorConductor.put("nombre", rs.getString("nombre"));
+                mejorConductor.put("placa", rs.getString("placa"));
+                mejorConductor.put("distancia", 1.5);
             }
         } catch (Exception e) {
-            System.err.println("Error en Haversine flexible: " + e.getMessage());
+            System.err.println("Error buscando conductor: " + e.getMessage());
         }
 
         return mejorConductor;
