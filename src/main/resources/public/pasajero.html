@@ -100,7 +100,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
     <script>
-        // Inicializar mapa centrado en Lima / El Agustino
+        // Inicializar mapa centrado en Lima / El Agustino por defecto
         const map = L.map('map', { zoomControl: false }).setView([-12.0498, -77.0019], 15);
         L.control.zoom({ position: 'bottomright' }).addTo(map);
 
@@ -145,6 +145,24 @@
             marcadorPasajero.setLatLng([latPasajero, lonPasajero]);
         });
 
+        // Obtener ubicación GPS real automática al cargar la página
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                function(position) {
+                    latPasajero = position.coords.latitude;
+                    lonPasajero = position.coords.longitude;
+                    marcadorPasajero.setLatLng([latPasajero, lonPasajero]);
+                    map.setView([latPasajero, lonPasajero], 16);
+                    marcadorPasajero.bindPopup("<b>¡Tu ubicación GPS!</b>").openPopup();
+                    document.getElementById('estado-texto').innerText = "GPS Listo";
+                },
+                function(error) {
+                    console.warn("GPS no disponible, usando manual.");
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
+        }
+
         let routingControl = null;
 
         function actualizarRutaVisual() {
@@ -170,7 +188,7 @@
 
         let timeoutBusqueda = null;
 
-        // Buscador interactivo en tiempo real con lista desplegable de resultados relacionados
+        // Buscador interactivo en tiempo real con lista desplegable
         function buscarSugerencias(query) {
             clearTimeout(timeoutBusqueda);
             const contenedor = document.getElementById('resultados-busqueda');
@@ -199,7 +217,7 @@
                         }
                     })
                     .catch(err => console.error("Error buscando sugerencias:", err));
-            }, 3000);
+            }, 300);
         }
 
         function seleccionarLugar(lat, lon, nombre) {
@@ -224,9 +242,12 @@
             const btn = document.getElementById('btn-solicitar');
             const destinoTexto = document.getElementById('destino-input').value.trim();
             
-            const posActual = marcadorPasajero.getLatLng();
-            latPasajero = posActual.lat;
-            lonPasajero = posActual.lng;
+            // Forzar lectura de la posición actual exacta del marcador de recogida
+            if (marcadorPasajero) {
+                const posActual = marcadorPasajero.getLatLng();
+                latPasajero = posActual.lat;
+                lonPasajero = posActual.lng;
+            }
 
             if (!latPasajero || !lonPasajero) {
                 alert("Por favor, selecciona tu ubicación en el mapa.");
@@ -240,7 +261,7 @@
             const formData = new URLSearchParams();
             formData.append('lat', latPasajero);
             formData.append('lon', lonPasajero);
-            formData.append('destino', destinoTexto);
+            formData.append('destino', destinoTexto ? destinoTexto : "Destino general");
 
             fetch(`${BACKEND_URL}/api/solicitar-viaje`, {
                 method: 'POST',
@@ -258,6 +279,8 @@
                         <em>¡Tu mototaxi está en camino en tiempo real!</em>
                     `;
                     btn.innerText = "Viaje en Curso";
+                    
+                    // Iniciar el rastreo en vivo de la moto en el mapa del pasajero
                     iniciarRastreoEnVivo(data.placa);
                 } else {
                     alert(data.mensaje);
