@@ -73,7 +73,7 @@ public class Main {
                 ));
             } else {
                 System.out.println("⚠️ Solicitud recibida, pero NO hay conductores registrados en la BD.");
-                ctx.status(404).json(Map.of("exito", false, "mensaje", "No hay unidades disponibles en este momento. Asegúrate de conectar el radar en tu celular."));
+                ctx.status(404).json(Map.of("exito", false, "mensaje", "No hay unidades disponibles en este momento. Conecta el radar en tu celular."));
             }
         });
 
@@ -193,7 +193,7 @@ public class Main {
             ctx.result(json.toString());
         });
 
-        // 6. DIAGNÓSTICO: Ver todos los conductores registrados en la BD en tiempo real
+        // 6. DIAGNÓSTICO: Listar conductores
         app.get("/api/listar-conductores", ctx -> {
             String urlDb = "jdbc:mysql://" + HOST + ":" + PORT_DB + "/motogo_db?sslMode=VERIFY_IDENTITY";
             StringBuilder json = new StringBuilder("[");
@@ -230,24 +230,10 @@ public class Main {
             
             stmt.executeUpdate("CREATE DATABASE IF NOT EXISTS motogo_db;");
             stmt.executeUpdate("USE motogo_db;");
-
-            stmt.executeUpdate("CREATE TABLE IF NOT EXISTS ciudades (" +
-                    "id INT AUTO_INCREMENT PRIMARY KEY, nombre VARCHAR(100), departamento VARCHAR(100));");
-
-            stmt.executeUpdate("CREATE TABLE IF NOT EXISTS conductores (" +
-                    "id INT AUTO_INCREMENT PRIMARY KEY, nombre VARCHAR(150), placa VARCHAR(20) UNIQUE, " +
-                    "ciudad_id INT, latitud DECIMAL(10, 8), longitud DECIMAL(11, 8), disponible BOOLEAN DEFAULT TRUE);");
-
-            stmt.executeUpdate("CREATE TABLE IF NOT EXISTS solicitudes (" +
-                    "id INT AUTO_INCREMENT PRIMARY KEY, latitud DECIMAL(10, 8), longitud DECIMAL(11, 8), " +
-                    "destino VARCHAR(255), fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP);");
-
-            stmt.executeUpdate("CREATE TABLE IF NOT EXISTS viajes (" +
-                    "id INT AUTO_INCREMENT PRIMARY KEY, conductor_id INT, latitud DECIMAL(10, 8), " +
-                    "longitud DECIMAL(11, 8), destino VARCHAR(255), estado VARCHAR(30) DEFAULT 'PENDIENTE', " +
-                    "creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP);");
-
-            System.out.println("Base de datos motogo_db verificada correctamente.");
+            stmt.executeUpdate("CREATE TABLE IF NOT EXISTS ciudades (id INT AUTO_INCREMENT PRIMARY KEY, nombre VARCHAR(100), departamento VARCHAR(100));");
+            stmt.executeUpdate("CREATE TABLE IF NOT EXISTS conductores (id INT AUTO_INCREMENT PRIMARY KEY, nombre VARCHAR(150), placa VARCHAR(20) UNIQUE, ciudad_id INT, latitud DECIMAL(10, 8), longitud DECIMAL(11, 8), disponible BOOLEAN DEFAULT TRUE);");
+            stmt.executeUpdate("CREATE TABLE IF NOT EXISTS solicitudes (id INT AUTO_INCREMENT PRIMARY KEY, latitud DECIMAL(10, 8), longitud DECIMAL(11, 8), destino VARCHAR(255), fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP);");
+            stmt.executeUpdate("CREATE TABLE IF NOT EXISTS viajes (id INT AUTO_INCREMENT PRIMARY KEY, conductor_id INT, latitud DECIMAL(10, 8), longitud DECIMAL(11, 8), destino VARCHAR(255), estado VARCHAR(30) DEFAULT 'PENDIENTE', creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP);");
         } catch (Exception e) {
             System.err.println("Error inicializando BD: " + e.getMessage());
         }
@@ -287,25 +273,47 @@ public class Main {
     private static Map<String, Object> buscarConductorMasCercano(double pLat, double pLon) {
         String urlDb = "jdbc:mysql://" + HOST + ":" + PORT_DB + "/motogo_db?sslMode=VERIFY_IDENTITY";
         Map<String, Object> mejorConductor = null;
+        double menorDistancia = Double.MAX_VALUE;
 
-        // Selección directa garantizada del último conductor activo registrado
-        String query = "SELECT id, nombre, placa, latitud, longitud FROM conductores ORDER BY id DESC LIMIT 1";
-
+        String query = "SELECT id, nombre, placa, latitud, longitud FROM conductores WHERE disponible = TRUE";
         try (Connection conn = DriverManager.getConnection(urlDb, USER, PASSWORD);
              Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(query)) {
+            while (rs.next()) {
+                int id = rs.getInt("id");
+                String nombre = rs.getString("nombre");
+                String placa = rs.getString("placa");
+                double cLat = rs.getDouble("latitud");
+                double cLon = rs.getDouble("longitud");
+                double distancia = calcularHaversine(pLat, pLon, cLat, cLon);
 
-            if (rs.next()) {
-                mejorConductor = new HashMap<>();
-                mejorConductor.put("id", rs.getInt("id"));
-                mejorConductor.put("nombre", rs.getString("nombre"));
-                mejorConductor.put("placa", rs.getString("placa"));
-                mejorConductor.put("distancia", 1.2);
+                if (distancia < menorDistancia) {
+                    menorDistancia = distancia;
+                    mejorConductor = new HashMap<>();
+                    mejorConductor.put("id", id);
+                    mejorConductor.put("nombre", nombre);
+                    mejorConductor.put("placa", placa);
+                    mejorConductor.put("distancia", Math.round(distancia * 100.0) / 100.0);
+                }
             }
         } catch (Exception e) {
-            System.err.println("Error buscando conductor: " + e.getMessage());
+            System.err.println("Error Haversine: " + e.getMessage());
         }
 
+        if (mejorConductor == null) {
+            String fallback = "SELECT id, nombre, placa, latitud, longitud FROM conductores ORDER BY id DESC LIMIT 1";
+            try (Connection conn = DriverManager.getConnection(urlDb, USER, PASSWORD);
+                 Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery(fallback)) {
+                if (rs.next()) {
+                    mejorConductor = new HashMap<>();
+                    mejorConductor.put("id", rs.getInt("id"));
+                    mejorConductor.put("nombre", rs.getString("nombre"));
+                    mejorConductor.put("placa", rs.getString("placa"));
+                    mejorConductor.put("distancia", 1.0);
+                }
+            } catch (Exception ignored) {}
+        }
         return mejorConductor;
     }
 
@@ -316,7 +324,6 @@ public class Main {
         double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
                    Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
                    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return R * c;
+        return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
     }
 }
