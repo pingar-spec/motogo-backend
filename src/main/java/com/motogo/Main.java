@@ -14,7 +14,7 @@ public class Main {
     private static final String HOST = "gateway01.sa-east-1.prod.aws.tidbcloud.com";
     private static final String PORT_DB = "4000";
     private static final String USER = "VqAp2wi3ep6JvL1.root";
-    private static final String PASSWORD = "TU_CONTRASEÑA_AQUÍ";
+    private static final String PASSWORD = "wYgdmBp2KH2hG3FM";
 
     public static void main(String[] args) {
         inicializarBaseDeDatosNacional();
